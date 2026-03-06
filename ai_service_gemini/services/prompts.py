@@ -4,14 +4,16 @@ System instruction builders for Gemini Live sessions.
 The system instruction is injected into every Live session so the model knows
 the current menu (with modifiers), cart state, behavioural rules, and
 upsell / combo hints — without any extra LLM call.
+
+Combos and upsell pairings are loaded from the DB at startup and refreshed
+via ``reload_combos()``.  Fallback static data is used when the DB is
+unavailable.
 """
 
 from __future__ import annotations
 
 
 # ─── Modifier catalogue (used both in prompt and in upsell engine) ─────────────
-# When a real DB with product_variants / modifiers table is connected, this
-# will be replaced by a DB query.  For now it is keyed by product name (lowercase).
 MODIFIER_CATALOGUE: dict[str, dict] = {
     "masala chai":    {"size": ["small", "large"], "extras": ["extra ginger", "less sugar", "extra sweet"]},
     "mango lassi":    {"size": ["small", "large"], "extras": ["less sugar", "extra mango"]},
@@ -25,9 +27,14 @@ MODIFIER_CATALOGUE: dict[str, dict] = {
     "gulab jamun":    {"extras": ["warm", "cold", "extra sugar syrup"]},
 }
 
-# ─── Combo deals catalogue ────────────────────────────────────────────────────
-# Structure: list of {name, items (names), saving, description}
-COMBO_DEALS = [
+# ─── Dynamic combo deals (loaded from DB, fallback to static) ─────────────────
+COMBO_DEALS: list[dict] = []
+
+# ─── Dynamic upsell map (loaded from DB combos, fallback to static) ──────────
+UPSELL_MAP: list[tuple[str, str]] = []
+
+# ─── Static fallbacks ────────────────────────────────────────────────────────
+_FALLBACK_COMBOS = [
     {
         "name":        "Starter Combo",
         "items":       ["Paneer Tikka", "Masala Chai"],
@@ -40,25 +47,63 @@ COMBO_DEALS = [
         "saving":      25,
         "description": "Veg Biryani + Mango Lassi — save ₹25",
     },
-    {
-        "name":        "Butter Chicken Feast",
-        "items":       ["Butter Chicken", "Garlic Naan", "Dal Makhani"],
-        "saving":      40,
-        "description": "Butter Chicken + Garlic Naan + Dal Makhani — save ₹40",
-    },
 ]
 
-# ─── Upsell map: if X is in cart, suggest Y ──────────────────────────────────
-UPSELL_MAP: list[tuple[str, str]] = [
+_FALLBACK_UPSELL: list[tuple[str, str]] = [
     ("Veg Biryani",     "Mango Lassi"),
     ("Butter Chicken",  "Garlic Naan"),
-    ("Butter Chicken",  "Dal Makhani"),
     ("Paneer Tikka",    "Masala Chai"),
     ("Aloo Paratha",    "Masala Chai"),
-    ("Aloo Paratha",    "Mango Lassi"),
-    ("Gulab Jamun",     "Masala Chai"),
     ("Dal Makhani",     "Garlic Naan"),
 ]
+
+
+async def reload_combos() -> None:
+    """
+    Load combo deals from ``menu_combos`` + ``combo_items`` and derive
+    upsell pairings.  Called on startup and can be called periodically.
+    """
+    global COMBO_DEALS, UPSELL_MAP
+
+    try:
+        from services.database.queries import fetch_active_combos
+        db_combos = await fetch_active_combos()
+    except Exception:
+        db_combos = []
+
+    if db_combos:
+        COMBO_DEALS = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for c in db_combos:
+            item_names = [i["item_name"] for i in c["items"]]
+            COMBO_DEALS.append({
+                "name":        c["name"],
+                "items":       item_names,
+                "saving":      c.get("saving", 0),
+                "description": c.get("description") or (
+                    " + ".join(item_names) + f" — save ₹{c.get('saving', 0)}"
+                ),
+            })
+            # Derive pairings: each item triggers suggestion of the others
+            for i, trigger in enumerate(item_names):
+                for j, target in enumerate(item_names):
+                    if i != j:
+                        pair = (trigger, target)
+                        if pair not in seen_pairs:
+                            seen_pairs.add(pair)
+        UPSELL_MAP = list(seen_pairs)
+    else:
+        COMBO_DEALS = list(_FALLBACK_COMBOS)
+        UPSELL_MAP  = list(_FALLBACK_UPSELL)
+
+
+def _extract_item_name_from_menu(suggestion_text: str, menu: list[dict]) -> str | None:
+    """Pull the item name out of a suggestion / upsell string."""
+    text_lower = suggestion_text.lower()
+    for m in menu:
+        if m["name"].lower() in text_lower:
+            return m["name"]
+    return None
 
 
 def build_live_system_instruction(
@@ -77,12 +122,18 @@ def build_live_system_instruction(
     - Pending clarification question (if any)
     - Upsell / combo suggestion (if any)
     """
-    # ── Menu section ──
+    # ── Menu section (show item + variants) ──
     lines = []
     for item in menu_items[:50]:
         name  = item["name"]
-        price = item["price"]
-        lines.append(f"  {name} — ₹{price}")
+        variants = item.get("variants", [])
+        if len(variants) > 1:
+            var_strs = [f"{v['variant_name']} ₹{v['price']:.0f}" for v in variants]
+            lines.append(f"  {name} — {', '.join(var_strs)}")
+        else:
+            lines.append(f"  {name} — ₹{item['price']:.0f}")
+        veg_tag = " [Veg]" if item.get("is_veg") else " [Non-Veg]"
+        lines[-1] += veg_tag
     menu_text = "\n".join(lines)
 
     # ── Cart section ──

@@ -29,11 +29,6 @@ from services.audio.live import voice_turn
 from services.database.connection import get_pool
 from services.database.queries import (
     fetch_active_menu,
-    fetch_tables,
-    generate_order_number,
-    get_default_table_id,
-    get_default_terminal_id,
-    get_open_session_id,
     insert_order,
 )
 from services.dialogue.order_builder import format_cart_total, get_cart_total
@@ -51,35 +46,22 @@ router = APIRouter(prefix="/test", tags=["diagnostics"])
 
 # ─── Fallbacks (used when DB is unavailable) ──────────────────────────────────
 _FALLBACK_MENU = [
-    {"product_id": "1",  "name": "Paneer Tikka",   "price": 250.0, "tax": 5.0, "category_name": "Starters"},
-    {"product_id": "2",  "name": "Masala Chai",     "price": 50.0,  "tax": 0.0, "category_name": "Beverages"},
-    {"product_id": "3",  "name": "Veg Biryani",     "price": 180.0, "tax": 5.0, "category_name": "Main Course"},
-    {"product_id": "4",  "name": "Garlic Naan",     "price": 40.0,  "tax": 5.0, "category_name": "Breads"},
-    {"product_id": "5",  "name": "Mango Lassi",     "price": 80.0,  "tax": 0.0, "category_name": "Beverages"},
-    {"product_id": "6",  "name": "Dal Makhani",     "price": 160.0, "tax": 5.0, "category_name": "Main Course"},
-    {"product_id": "7",  "name": "Gulab Jamun",     "price": 60.0,  "tax": 5.0, "category_name": "Desserts"},
-    {"product_id": "8",  "name": "Aloo Paratha",    "price": 90.0,  "tax": 5.0, "category_name": "Breads"},
-    {"product_id": "9",  "name": "Cold Coffee",     "price": 110.0, "tax": 0.0, "category_name": "Beverages"},
-    {"product_id": "10", "name": "Butter Chicken",  "price": 280.0, "tax": 5.0, "category_name": "Main Course"},
+    {"product_id": "1",  "item_id": 1,  "name": "Paneer Tikka",   "price": 250.0, "tax": 5.0, "category_name": "Starters",    "is_veg": True,  "variant_id": 1,  "variant_name": "Full", "food_cost": 100.0, "variants": [{"variant_id": 1, "variant_name": "Full", "price": 250.0, "gst_pct": 5.0, "food_cost": 100.0}]},
+    {"product_id": "2",  "item_id": 2,  "name": "Masala Chai",     "price": 50.0,  "tax": 0.0, "category_name": "Beverages",   "is_veg": True,  "variant_id": 2,  "variant_name": "Regular", "food_cost": 15.0, "variants": [{"variant_id": 2, "variant_name": "Regular", "price": 50.0, "gst_pct": 0.0, "food_cost": 15.0}]},
+    {"product_id": "3",  "item_id": 3,  "name": "Veg Biryani",     "price": 180.0, "tax": 5.0, "category_name": "Main Course", "is_veg": True,  "variant_id": 3,  "variant_name": "Full", "food_cost": 70.0, "variants": [{"variant_id": 3, "variant_name": "Full", "price": 180.0, "gst_pct": 5.0, "food_cost": 70.0}]},
+    {"product_id": "4",  "item_id": 4,  "name": "Garlic Naan",     "price": 40.0,  "tax": 5.0, "category_name": "Breads",      "is_veg": True,  "variant_id": 4,  "variant_name": "Regular", "food_cost": 12.0, "variants": [{"variant_id": 4, "variant_name": "Regular", "price": 40.0, "gst_pct": 5.0, "food_cost": 12.0}]},
+    {"product_id": "5",  "item_id": 5,  "name": "Mango Lassi",     "price": 80.0,  "tax": 0.0, "category_name": "Beverages",   "is_veg": True,  "variant_id": 5,  "variant_name": "Regular", "food_cost": 25.0, "variants": [{"variant_id": 5, "variant_name": "Regular", "price": 80.0, "gst_pct": 0.0, "food_cost": 25.0}]},
+    {"product_id": "6",  "item_id": 6,  "name": "Dal Makhani",     "price": 160.0, "tax": 5.0, "category_name": "Main Course", "is_veg": True,  "variant_id": 6,  "variant_name": "Full", "food_cost": 55.0, "variants": [{"variant_id": 6, "variant_name": "Full", "price": 160.0, "gst_pct": 5.0, "food_cost": 55.0}]},
+    {"product_id": "7",  "item_id": 7,  "name": "Gulab Jamun",     "price": 60.0,  "tax": 5.0, "category_name": "Desserts",    "is_veg": True,  "variant_id": 7,  "variant_name": "2 Pcs", "food_cost": 18.0, "variants": [{"variant_id": 7, "variant_name": "2 Pcs", "price": 60.0, "gst_pct": 5.0, "food_cost": 18.0}]},
+    {"product_id": "8",  "item_id": 8,  "name": "Aloo Paratha",    "price": 90.0,  "tax": 5.0, "category_name": "Breads",      "is_veg": True,  "variant_id": 8,  "variant_name": "Regular", "food_cost": 30.0, "variants": [{"variant_id": 8, "variant_name": "Regular", "price": 90.0, "gst_pct": 5.0, "food_cost": 30.0}]},
+    {"product_id": "9",  "item_id": 9,  "name": "Cold Coffee",     "price": 110.0, "tax": 0.0, "category_name": "Beverages",   "is_veg": True,  "variant_id": 9,  "variant_name": "Regular", "food_cost": 35.0, "variants": [{"variant_id": 9, "variant_name": "Regular", "price": 110.0, "gst_pct": 0.0, "food_cost": 35.0}]},
+    {"product_id": "10", "item_id": 10, "name": "Butter Chicken",  "price": 280.0, "tax": 5.0, "category_name": "Main Course", "is_veg": False, "variant_id": 10, "variant_name": "Full", "food_cost": 110.0, "variants": [{"variant_id": 10, "variant_name": "Full", "price": 280.0, "gst_pct": 5.0, "food_cost": 110.0}]},
 ]
-_FALLBACK_TABLES = [
-    {"table_id": "demo-t1", "table_number": "T-1", "seats": 4, "status": "available"},
-    {"table_id": "demo-t2", "table_number": "T-2", "seats": 4, "status": "available"},
-    {"table_id": "demo-t3", "table_number": "T-3", "seats": 2, "status": "available"},
-]
-
-_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
-
 
 def _get_menu(request: Request) -> list[dict]:
     """Return cached DB menu, falling back to hardcoded list if DB is down."""
     menu = getattr(request.app.state, "menu", [])
     return menu if menu else _FALLBACK_MENU
-
-
-def _get_tables(request: Request) -> list[dict]:
-    tables = getattr(request.app.state, "tables", [])
-    return tables if tables else _FALLBACK_TABLES
 
 
 # ─── /test/ping ───────────────────────────────────────────────────────────────
@@ -94,7 +76,6 @@ async def ping():
 @router.get("/services")
 async def service_status(request: Request):
     menu   = _get_menu(request)
-    tables = _get_tables(request)
     db_ok  = get_pool() is not None
     return {
         "pipeline": {
@@ -106,7 +87,6 @@ async def service_status(request: Request):
         "database": {
             "connected":    db_ok,
             "menu_items":   len(menu),
-            "tables":       len(tables),
             "source":       "database" if db_ok else "fallback (DB unavailable)",
         },
     }
@@ -138,18 +118,6 @@ async def get_menu(request: Request):
     }
 
 
-# ─── /test/tables ─────────────────────────────────────────────────────────────
-
-@router.get("/tables")
-async def get_tables(request: Request):
-    """Active tables from DB (or demo table list)."""
-    tables = _get_tables(request)
-    return {
-        "source": "database" if get_pool() else "fallback",
-        "tables": tables,
-    }
-
-
 # ─── /test/voice-chat ─────────────────────────────────────────────────────────
 
 @router.post("/voice-chat")
@@ -158,7 +126,6 @@ async def voice_chat(
     audio:      UploadFile = File(...),
     session_id: str        = Form(default=""),
     language:   str        = Form(default="en"),
-    table_id:   str        = Form(default=""),
 ):
     """
     Full stateful voice turn for VoiceLab.
@@ -173,12 +140,9 @@ async def voice_chat(
         session_id = str(uuid.uuid4())
 
     menu      = _get_menu(request)
-    session   = get_session(session_id, table_id or "demo-table")
+    session   = get_session(session_id)
     cart: list[dict] = list(session["cart"])
     turn_num  = session.get("turn", 0) + 1
-
-    if table_id:
-        session["table_id"] = table_id
 
     audio_bytes = await audio.read()
     if not audio_bytes:
@@ -255,12 +219,14 @@ async def voice_chat(
                 if mi:
                     cart.append({
                         "product_id":   pid,
+                        "item_id":      mi.get("item_id", int(pid)),
                         "name":         mi["name"],
                         "quantity":     qty,
                         "unit_price":   float(mi["price"]),
                         "tax_rate":     float(mi.get("tax", 5.0)),
-                        "variant_id":   None,
-                        "variant_name": None,
+                        "variant_id":   mi.get("variant_id"),
+                        "variant_name": mi.get("variant_name"),
+                        "food_cost":    float(mi.get("food_cost", 0)),
                         "notes":        mods.get("notes"),
                         "modifiers":    {k: v for k, v in mods.items() if v} or None,
                     })
@@ -308,12 +274,14 @@ async def voice_chat(
                 if mi and not any(c["product_id"] == str(mi["product_id"]) for c in cart):
                     cart.append({
                         "product_id":   str(mi["product_id"]),
+                        "item_id":      mi.get("item_id", int(mi["product_id"])),
                         "name":         mi["name"],
                         "quantity":     1,
                         "unit_price":   float(mi["price"]),
                         "tax_rate":     float(mi.get("tax", 5.0)),
-                        "variant_id":   None,
-                        "variant_name": None,
+                        "variant_id":   mi.get("variant_id"),
+                        "variant_name": mi.get("variant_name"),
+                        "food_cost":    float(mi.get("food_cost", 0)),
                         "notes":        None,
                         "modifiers":    None,
                     })
@@ -337,19 +305,14 @@ async def voice_chat(
             subtotal, tax_total, grand_total = get_cart_total(cart)
             order_summary = build_order_summary(cart, subtotal, tax_total, grand_total)
             try:
-                await _write_order_to_db(
-                    session_data=session,
-                    table_id=table_id,
+                order_id = await insert_order(
                     cart=cart,
                     subtotal=subtotal,
-                    tax_total=tax_total,
-                    grand_total=grand_total,
-                    cart_events=cart_events,
+                    tax=tax_total,
+                    total=grand_total,
                 )
-                order_number = next(
-                    (e.split("#")[1].split(" ")[0] for e in cart_events if "#" in e),
-                    None,
-                )
+                cart_events.append(f"✅ Order #{order_id} placed — ₹{grand_total:.0f}")
+                order_number = str(order_id)
             except Exception as exc:
                 logger.error("Order write failed: %s", exc)
                 cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (DB write failed)")
@@ -373,7 +336,6 @@ async def voice_chat(
         "last_intent":            intent.value,
         "last_response":          response_text,
         "turn":                   turn_num,
-        "table_id":               table_id or session.get("table_id", ""),
         "pending_clarification":  new_clarification,
         "pending_upsell":         new_pending_upsell,
         "upsells_shown":          upsells_shown,
@@ -470,8 +432,10 @@ async def add_item_direct(
             "quantity":     quantity,
             "unit_price":   float(mi["price"]),
             "tax_rate":     float(mi.get("tax", 5.0)),
-            "variant_id":   None,
-            "variant_name": None,
+            "item_id":      mi.get("item_id"),
+            "variant_id":   mi.get("variant_id"),
+            "variant_name": mi.get("variant_name"),
+            "food_cost":    float(mi.get("food_cost", 0)),
             "notes":        None,
             "modifiers":    None,
         })
@@ -514,6 +478,14 @@ async def add_item_direct(
     }
 
 
+# ─── /test/session/:session_id ────────────────────────────────────────────────
+
+@router.get("/session/{session_id}")
+async def get_session_data(session_id: str):
+    session = get_session(session_id)
+    return session
+
+
 # ─── /test/voicelab ──────────────────────────────────────────────────────────
 
 @router.get("/voicelab", response_class=HTMLResponse)
@@ -523,54 +495,3 @@ async def voicelab():
         return HTMLResponse(f.read())
 
 
-# ─── Internal: DB order writer ───────────────────────────────────────────────
-
-async def _write_order_to_db(
-    session_data: dict,
-    table_id: str,
-    cart: list[dict],
-    subtotal: float,
-    tax_total: float,
-    grand_total: float,
-    cart_events: list[str],
-) -> None:
-    """
-    Attempt to write a confirmed order to the database.
-    Appends a status string to cart_events.
-    Falls back to a demo message if DB is unavailable.
-    """
-    pool = get_pool()
-    if pool is None:
-        cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (demo mode, no DB)")
-        return
-
-    # Resolve IDs
-    tid = table_id or session_data.get("table_id") or await get_default_table_id()
-    pos_session_id = await get_open_session_id(_SYSTEM_USER_ID)
-    terminal_id    = await get_default_terminal_id()
-
-    if not (tid and pos_session_id and terminal_id):
-        missing = []
-        if not tid:            missing.append("table_id")
-        if not pos_session_id: missing.append("pos_session")
-        if not terminal_id:    missing.append("terminal_id")
-        cart_events.append(
-            f"Order confirmed — ₹{grand_total:.0f} "
-            f"(missing: {', '.join(missing)} — check DB setup)"
-        )
-        return
-
-    order_num = await generate_order_number()
-    await insert_order(
-        order_number=order_num,
-        table_id=tid,
-        session_id=pos_session_id,
-        terminal_id=terminal_id,
-        user_id=_SYSTEM_USER_ID,
-        cart=cart,
-        subtotal=subtotal,
-        tax=tax_total,
-        total=grand_total,
-    )
-    cart_events.append(f"✅ Order #{order_num} placed — ₹{grand_total:.0f}")
-    logger.info("Order %s written to DB (table=%s, total=%.0f)", order_num, tid, grand_total)

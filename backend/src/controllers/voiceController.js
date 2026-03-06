@@ -1,68 +1,95 @@
 const db = require('../config/db');
-const mlService = require('../services/mlService');
+const axios = require('axios');
+const FormData = require('form-data');
 const crypto = require('crypto');
 
-// In-memory session store (per plan.md: voice session state is in-memory)
-const sessions = new Map();
+const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8002';
 
-// ──── Transcribe: audio → text (proxy to ML Whisper) ─────────────────────────
-exports.transcribe = async (req, res, next) => {
+// ──── Voice Turn (audio) – proxy multipart to Python /voice/order ────────────
+exports.voiceTurn = async (req, res, next) => {
   try {
-    const mlResult = await mlService.post('/voice/transcribe', req.body);
-    if (mlResult) return res.json(mlResult);
-    res.status(503).json({ error: 'ML service unavailable. Start FastAPI on port 8000.' });
+    const form = new FormData();
+    if (req.file) {
+      form.append('audio', req.file.buffer, {
+        filename: req.file.originalname || 'audio.webm',
+        contentType: req.file.mimetype || 'audio/webm',
+      });
+    }
+    form.append('session_id', req.body.session_id || crypto.randomUUID());
+    if (req.body.channel) form.append('channel', req.body.channel);
+
+    const resp = await axios.post(`${AI_URL}/voice/order`, form, {
+      headers: form.getHeaders(),
+      timeout: 60000,
+      maxContentLength: 50 * 1024 * 1024,
+    });
+    res.json(resp.data);
   } catch (err) {
+    if (err.response) return res.status(err.response.status).json(err.response.data);
     next(err);
   }
 };
 
-// ──── Intent: text → intent label (proxy to ML DistilBERT) ───────────────────
-exports.intent = async (req, res, next) => {
+// ──── Voice Chat (text) – proxy to Python /test/voice-chat ───────────────────
+exports.voiceChat = async (req, res, next) => {
   try {
-    const mlResult = await mlService.post('/predict/intent', req.body);
-    if (mlResult) return res.json(mlResult);
-    res.status(503).json({ error: 'ML service unavailable. Start FastAPI on port 8000.' });
+    const form = new FormData();
+    form.append('session_id', req.body.session_id || crypto.randomUUID());
+    form.append('user_text', req.body.user_text || '');
+    if (req.body.channel) form.append('channel', req.body.channel);
+
+    const resp = await axios.post(`${AI_URL}/test/voice-chat`, form, {
+      headers: form.getHeaders(),
+      timeout: 30000,
+    });
+    res.json(resp.data);
   } catch (err) {
+    if (err.response) return res.status(err.response.status).json(err.response.data);
     next(err);
   }
 };
 
-// ──── Process Turn: full pipeline (proxy to ML) ──────────────────────────────
-exports.processTurn = async (req, res, next) => {
+// ──── Add Item (upsell chip click) – proxy to Python /test/add-item ─────────
+exports.addItem = async (req, res, next) => {
   try {
-    const { text, session_id } = req.body;
-    const sid = session_id || crypto.randomUUID();
+    const form = new FormData();
+    form.append('session_id', req.body.session_id);
+    form.append('product_id', req.body.product_id);
+    form.append('item_name', req.body.item_name);
+    if (req.body.quantity) form.append('quantity', String(req.body.quantity));
 
-    // Get or create session
-    if (!sessions.has(sid)) {
-      sessions.set(sid, { session_id: sid, items: [], created_at: new Date() });
-    }
-    const session = sessions.get(sid);
-
-    // Proxy to ML full pipeline
-    const mlResult = await mlService.post('/voice/process-turn', {
-      text,
-      session_id: sid,
-      current_items: session.items,
+    const resp = await axios.post(`${AI_URL}/test/add-item`, form, {
+      headers: form.getHeaders(),
+      timeout: 10000,
     });
-
-    if (mlResult) {
-      // Update session with ML-returned items
-      if (mlResult.items) session.items = mlResult.items;
-      sessions.set(sid, session);
-      return res.json({ ...mlResult, session_id: sid });
-    }
-
-    // Fallback: echo back with session
-    res.json({
-      session_id: sid,
-      transcript: text,
-      intent: 'unknown',
-      items: session.items,
-      message: 'ML service unavailable — voice pipeline not active',
-    });
+    res.json(resp.data);
   } catch (err) {
+    if (err.response) return res.status(err.response.status).json(err.response.data);
     next(err);
+  }
+};
+
+// ──── Reset Session ──────────────────────────────────────────────────────────
+exports.resetSession = async (req, res, next) => {
+  try {
+    const resp = await axios.post(`${AI_URL}/voice/reset`,
+      { session_id: req.body.session_id },
+      { headers: { 'Content-Type': 'application/json' }, timeout: 5000 }
+    );
+    res.json(resp.data);
+  } catch (err) {
+    if (err.response) return res.status(err.response.status).json(err.response.data);
+    next(err);
+  }
+};
+
+// ──── Get AI Service Health ──────────────────────────────────────────────────
+exports.health = async (req, res) => {
+  try {
+    const resp = await axios.get(`${AI_URL}/health`, { timeout: 5000 });
+    res.json({ status: 'ok', ai_service: resp.data });
+  } catch {
+    res.json({ status: 'degraded', ai_service: 'unavailable' });
   }
 };
 
@@ -72,8 +99,16 @@ exports.confirmOrder = async (req, res, next) => {
   try {
     const { session_id, customer_id, channel } = req.body;
 
-    const session = sessions.get(session_id);
-    if (!session || session.items.length === 0) {
+    // Fetch session cart from AI service
+    let cart;
+    try {
+      const resp = await axios.get(`${AI_URL}/test/session/${session_id}`, { timeout: 5000 });
+      cart = resp.data && resp.data.cart;
+    } catch {
+      cart = null;
+    }
+
+    if (!cart || cart.length === 0) {
       return res.status(400).json({ error: 'No active voice session or empty cart' });
     }
 
@@ -83,14 +118,15 @@ exports.confirmOrder = async (req, res, next) => {
     let totalTax = 0;
     const resolvedItems = [];
 
-    for (const item of session.items) {
+    for (const item of cart) {
+      const vid = item.variant_id || item.item_id;
       const vRes = await client.query(
         'SELECT selling_price, food_cost, gst_pct FROM menu_variants WHERE variant_id = $1',
-        [item.variant_id]
+        [vid]
       );
       if (vRes.rows.length === 0) continue;
       const v = vRes.rows[0];
-      const qty = item.qty || 1;
+      const qty = item.quantity || item.qty || 1;
       const lineRevenue = parseFloat(v.selling_price) * qty;
       const lineCost = parseFloat(v.food_cost) * qty;
       const lineGst = lineRevenue * parseFloat(v.gst_pct) / 100;
@@ -99,13 +135,13 @@ exports.confirmOrder = async (req, res, next) => {
       totalTax += lineGst;
       resolvedItems.push({
         item_id: item.item_id,
-        variant_id: item.variant_id,
+        variant_id: vid,
         qty,
         unit_price: parseFloat(v.selling_price),
         revenue: lineRevenue,
         food_cost: lineCost,
         gst_amt: lineGst,
-        special_instructions: item.special_instructions || null,
+        special_instructions: item.notes || item.special_instructions || null,
       });
     }
 
@@ -146,9 +182,6 @@ exports.confirmOrder = async (req, res, next) => {
 
     await client.query('COMMIT');
 
-    // Clear session
-    sessions.delete(session_id);
-
     res.status(201).json({ order_id: orderId, kot_id: kotId, total, status: 'placed' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -158,9 +191,22 @@ exports.confirmOrder = async (req, res, next) => {
   }
 };
 
-// ──── Get Session State ──────────────────────────────────────────────────────
-exports.getSession = async (req, res) => {
-  const session = sessions.get(req.params.session_id);
-  if (!session) return res.status(404).json({ error: 'Session not found' });
-  res.json(session);
+// ──── Route name aliases ──────────────────────────────────────────────────────
+// voice.js router uses these names; map them to the implementations above.
+exports.transcribe  = exports.voiceTurn;    // POST /transcribe  → audio → AI
+exports.intent      = exports.voiceChat;    // POST /intent      → text  → AI
+exports.processTurn = exports.voiceTurn;    // POST /process-turn → audio turn
+
+// GET /session/:session_id — proxy to AI service session state
+exports.getSession = async (req, res, next) => {
+  try {
+    const resp = await axios.get(
+      `${AI_URL}/test/session/${req.params.session_id}`,
+      { timeout: 5000 }
+    );
+    res.json(resp.data);
+  } catch (err) {
+    if (err.response) return res.status(err.response.status).json(err.response.data);
+    next(err);
+  }
 };
