@@ -57,6 +57,8 @@ export default function VoiceOrder() {
   const [turn, setTurn]                       = useState(0)
   const [menuCategories, setMenuCategories]   = useState([])
   const [menuLoading, setMenuLoading]         = useState(true)
+  const [lastResponse, setLastResponse]       = useState(null)
+  const [showRawJson, setShowRawJson]         = useState(false)
 
   // --- refs ---
   const sessionIdRef    = useRef(null)
@@ -162,8 +164,8 @@ export default function VoiceOrder() {
 
   // --- apply response from voice-chat / add-item ---
   const applyTurnResult = useCallback((data) => {
-    if (data.transcript)          setTranscript(data.transcript)
-    if (data.response_text)       setResponseText(data.response_text)
+    if (data.transcript)                              setTranscript(data.transcript)
+    if (data.response_text || data.response_display)  setResponseText(data.response_display || data.response_text)
     if (Array.isArray(data.cart))  setCart(formatCart(data.cart))
     if (data.cart_total)          setCartTotal(data.cart_total)
     if (data.cart_events)         setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
@@ -177,6 +179,9 @@ export default function VoiceOrder() {
     if (data.timings_ms)            setTimings(data.timings_ms)
     setUpsellSuggestion(data.upsell_suggestion || null)
     if (data.turn)                  setTurn(data.turn)
+    // Store raw response for debug panel (strip the large audio blob)
+    const { audio_base64: _omit, ...displayData } = data
+    setLastResponse(displayData)
   }, [playAudioBase64])
 
   // --- upsell chip click ---
@@ -248,7 +253,7 @@ export default function VoiceOrder() {
     setTranscript('')
     setResponseText('')
     setCart([])
-    setCartTotal('Rs.0')
+    setCartTotal('₹0')
     setCartEvents([])
     setUpsellChips([])
     setClarification(null)
@@ -261,6 +266,8 @@ export default function VoiceOrder() {
     setTimings(null)
     setUpsellSuggestion(null)
     setTurn(0)
+    setLastResponse(null)
+    setShowRawJson(false)
   }, [])
 
   // ---- derived ----
@@ -440,6 +447,30 @@ export default function VoiceOrder() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Raw API Response */}
+          {lastResponse && (
+            <div className="card overflow-hidden animate-fade-in">
+              <button
+                onClick={() => setShowRawJson(v => !v)}
+                className="w-full px-4 py-3 flex items-center justify-between bg-surface-50 hover:bg-surface-100 transition-colors border-b border-surface-200"
+              >
+                <span className="text-xs font-semibold text-surface-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <Zap size={11} className="text-amber-500" />
+                  Raw API Response
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 text-[10px] font-mono">
+                    turn {lastResponse.turn}
+                  </span>
+                </span>
+                <span className="text-surface-400 text-xs">{showRawJson ? '▲ hide' : '▼ show'}</span>
+              </button>
+              {showRawJson && (
+                <pre className="p-4 text-[11px] leading-relaxed text-surface-700 bg-surface-950 overflow-x-auto max-h-[500px] overflow-y-auto font-mono whitespace-pre-wrap break-all" style={{ background: '#0f172a', color: '#94a3b8' }}>
+                  {JSON.stringify(lastResponse, null, 2)}
+                </pre>
+              )}
             </div>
           )}
         </div>

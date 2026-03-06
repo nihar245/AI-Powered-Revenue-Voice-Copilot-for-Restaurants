@@ -17,6 +17,7 @@ GET  /test/voicelab      → VoiceLab HTML UI
 
 import logging
 import os
+import re
 import time
 import uuid
 
@@ -237,15 +238,24 @@ async def voice_chat(
     turn = await voice_turn(audio_bytes, system_instr)
     live_ms = round((time.perf_counter() - t0) * 1000)
 
-    transcript    = turn["transcript"]
-    response_text = turn["response_text"]
-    detected_lang = turn["language"]
-    audio_b64     = turn["audio_b64"]
+    transcript       = turn["transcript"]
+    response_text    = turn["response_text"]
+    response_display = turn.get("response_display") or response_text
+    cmd_hint         = turn.get("cmd_hint", "")
+    detected_lang    = turn["language"]
+    audio_b64        = turn["audio_b64"]
 
-    # ── Step 2: Extract structured update from transcript ─────────────────────
+    # ── Step 2: Extract structured update ─────────────────────────────────────
+    # Primary: parse Gemini's own [CMD:] tag (English, structured, no extra LLM call).
+    # Fallback: send transcript to Gemini text model if CMD tag is absent or malformed.
     t1 = time.perf_counter()
-    update_data  = await extract_cart_update(transcript, menu, response_text=response_text)
-    extract_ms   = round((time.perf_counter() - t1) * 1000)
+    cmd_parsed  = _apply_cmd_hint(cmd_hint, menu) if cmd_hint else None
+    update_data = (
+        cmd_parsed
+        if (cmd_parsed and cmd_parsed["intent"] != "unknown")
+        else await extract_cart_update(transcript, menu, response_text=response_text)
+    )
+    extract_ms = round((time.perf_counter() - t1) * 1000)
 
     intent_str            = update_data.get("intent", "unknown")
     items_to_act          = update_data.get("items", [])
@@ -444,6 +454,7 @@ async def voice_chat(
         "language":              detected_lang,
         "intent":                intent.value,
         "response_text":         response_text,
+        "response_display":      response_display,
         "audio_base64":          audio_b64,
         "audio_mime":            "audio/wav",
         "cart":                  cart,
@@ -474,6 +485,71 @@ def _extract_item_name_from_upsell(suggestion_text: str, menu: list[dict]) -> st
             # Make sure it's a suggestion target (appears before "pairs" or right after "add")
             return m["name"]
     return None
+
+
+def _apply_cmd_hint(cmd_hint: str, menu: list[dict]) -> dict | None:
+    """
+    Parse Gemini's [CMD: ...] tag directly into the same dict format as extract_cart_update().
+    This bypasses the text LLM entirely — Gemini Live already understood the order and
+    produced a structured English extraction tag as part of its response transcription.
+
+    Format: <intent> | <ExactMenuName> x<qty> (<key=val, key=val>)
+    Example: add_item | Paneer Tikka x1 (size=full, spice=hot) | Masala Chai x2
+
+    Returns None if the hint is empty or malformed.
+    """
+    if not cmd_hint.strip():
+        return None
+    try:
+        parts  = [p.strip() for p in cmd_hint.split("|")]
+        intent = parts[0].lower().strip()
+        _VALID_INTENTS = {
+            "add_item", "remove_item", "modify_item", "confirm_order", "cancel_order",
+            "view_cart", "view_menu", "enquire_price", "greeting", "unknown",
+            "upsell_response", "clarify",
+        }
+        if intent not in _VALID_INTENTS:
+            return None
+
+        items: list[dict] = []
+        for part in parts[1:]:
+            part = part.strip()
+            m = re.match(r'^(.+?)\s+x(\d+)(?:\s*\(([^)]*)\))?$', part, re.IGNORECASE)
+            if not m:
+                continue
+            name, qty, mods_s = m.group(1).strip(), int(m.group(2)), m.group(3) or ""
+            # Exact name match first, then partial
+            mi = next(
+                (item for item in menu if item["name"].lower() == name.lower()), None
+            ) or next(
+                (item for item in menu if name.lower() in item["name"].lower()), None
+            )
+            if not mi:
+                continue
+            mods: dict = {}
+            for kv in mods_s.split(","):
+                kv = kv.strip()
+                if "=" in kv:
+                    k, v = kv.split("=", 1)
+                    k, v = k.strip(), v.strip()
+                    if k and v:
+                        mods[k] = v
+            items.append({
+                "product_id": str(mi["product_id"]),
+                "name":       mi["name"],
+                "qty":        qty,
+                "modifiers":  mods or None,
+                "ambiguous":  False,
+            })
+
+        return {
+            "intent":                 intent,
+            "items":                  items,
+            "clarification_needed":   False,
+            "clarification_question": None,
+        }
+    except Exception:
+        return None
 
 
 # ─── /test/add-item (quick-add via upsell chip) ──────────────────────────────

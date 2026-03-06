@@ -23,6 +23,7 @@ import asyncio
 import base64
 import io
 import logging
+import re
 import struct
 import subprocess
 import traceback
@@ -114,6 +115,23 @@ def _detect_language(text: str) -> str:
     if best_count >= 3:
         return best_lang
     return "en"
+
+
+# ─── Response tag parser ─────────────────────────────────────────────────────
+
+def _parse_response_tags(text: str) -> tuple[str, str, str]:
+    """
+    Extract [CMD: ...] and [ROMAN: ...] tags from Gemini's output_audio_transcription.
+    Returns (clean_response, cmd_hint, roman_display).
+    Tags are stripped so they are never shown to the user or spoken aloud.
+    """
+    cmd_m   = re.search(r'\[CMD:\s*(.*?)\]',   text, re.DOTALL | re.IGNORECASE)
+    roman_m = re.search(r'\[ROMAN:\s*(.*?)\]', text, re.DOTALL | re.IGNORECASE)
+    cmd_hint   = cmd_m.group(1).strip()   if cmd_m   else ""
+    roman_text = roman_m.group(1).strip() if roman_m else ""
+    clean = re.sub(r'\[CMD:.*?\]',   '', text, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r'\[ROMAN:.*?\]', '', clean, flags=re.DOTALL | re.IGNORECASE).strip()
+    return clean, cmd_hint, roman_text
 
 
 # ─── Live session ─────────────────────────────────────────────────────────────
@@ -259,10 +277,14 @@ async def voice_turn(
     pcm_out   = b"".join(audio_chunks)
     audio_b64 = base64.b64encode(_pcm_to_wav(pcm_out)).decode() if pcm_out else ""
 
+    clean_response, cmd_hint, roman_display = _parse_response_tags(output_transcript)
+
     return {
-        "audio_b64":     audio_b64,
-        "audio_mime":    "audio/wav",
-        "transcript":    input_transcript.strip(),
-        "response_text": output_transcript.strip(),
-        "language":      _detect_language(input_transcript),
+        "audio_b64":        audio_b64,
+        "audio_mime":       "audio/wav",
+        "transcript":       input_transcript.strip(),
+        "response_text":    clean_response,
+        "response_display": roman_display or clean_response,
+        "cmd_hint":         cmd_hint,
+        "language":         _detect_language(input_transcript),
     }
