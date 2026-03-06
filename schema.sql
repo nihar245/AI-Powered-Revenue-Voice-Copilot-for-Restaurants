@@ -233,7 +233,7 @@ CREATE TABLE order_payments (
     payment_id          SERIAL PRIMARY KEY,
     order_id            INT REFERENCES orders(order_id),
     method              VARCHAR(20) NOT NULL
-                        CHECK (method IN ('cash','upi','credit_card','debit_card','wallet')),
+                        CHECK (method IN ('cash','upi','credit_card','debit_card','wallet','razorpay','online')),
     amount              NUMERIC(10,2) NOT NULL,
     transaction_ref     VARCHAR(100),
     paid_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -8,10 +8,27 @@ const badgeColor = {
   jain: 'text-amber-700 bg-amber-50 border-amber-200',
 }
 
+const quadrantConfig = {
+  Star:        { label: 'Star',       cls: 'text-emerald-700 bg-emerald-50 border-emerald-200', icon: '★' },
+  'Plow Horse':{ label: 'Plow Horse', cls: 'text-rose-700 bg-rose-50 border-rose-200',           icon: '⚡' },
+  Puzzle:      { label: 'Puzzle',     cls: 'text-violet-700 bg-violet-50 border-violet-200',     icon: '?' },
+  Dog:         { label: 'Dog',        cls: 'text-orange-700 bg-orange-50 border-orange-200',     icon: '·' },
+}
+
+function getQuadrant(rankPct, avgMargin) {
+  const highPop    = rankPct >= 50
+  const highMargin = avgMargin >= 40
+  if (highPop && highMargin)   return 'Star'
+  if (highPop && !highMargin)  return 'Plow Horse'
+  if (!highPop && highMargin)  return 'Puzzle'
+  return 'Dog'
+}
+
 export default function Products() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [ingredients, setIngredients] = useState([])
+  const [analyticsMap, setAnalyticsMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
@@ -33,10 +50,14 @@ export default function Products() {
       apiFetch('/products').catch(() => []),
       apiFetch('/products/categories').catch(() => []),
       apiFetch('/products/ingredients').catch(() => []),
-    ]).then(([p, c, i]) => {
+      apiFetch('/analytics/popularity-scoring').catch(() => []),
+    ]).then(([p, c, i, ps]) => {
       setProducts(Array.isArray(p) ? p : [])
       setCategories(Array.isArray(c) ? c : [])
       setIngredients(Array.isArray(i) ? i : [])
+      const map = {}
+      if (Array.isArray(ps)) ps.forEach(s => { map[s.item_id] = s })
+      setAnalyticsMap(map)
       setLoading(false)
     })
   }
@@ -204,6 +225,9 @@ export default function Products() {
           const avgMargin = variants.length > 0
             ? Math.round(variants.reduce((s, v) => s + ((v.selling_price - v.food_cost) / (v.selling_price || 1)) * 100, 0) / variants.length)
             : 0
+          const aData    = analyticsMap[p.item_id]
+          const quadrant = aData ? getQuadrant(aData.rank_pct, avgMargin) : null
+          const qConf    = quadrant ? quadrantConfig[quadrant] : null
 
           return (
             <div key={p.item_id} className={`card overflow-hidden transition-all ${!p.is_available ? 'opacity-60' : ''}`}>
@@ -217,6 +241,11 @@ export default function Products() {
                     </span>
                     {p.is_jain && <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${badgeColor.jain}`}>Jain</span>}
                     {!p.is_available && <span className="text-[10px] px-1.5 py-0.5 rounded-full border font-semibold text-red-600 bg-red-50 border-red-200">Disabled</span>}
+                    {qConf && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold ${qConf.cls}`}>
+                        {qConf.icon} {qConf.label}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-surface-400 mt-0.5">{p.category} · {variants.length} variant{variants.length !== 1 ? 's' : ''}</p>
                 </div>

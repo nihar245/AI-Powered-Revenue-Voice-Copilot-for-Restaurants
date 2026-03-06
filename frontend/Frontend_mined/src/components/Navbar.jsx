@@ -13,6 +13,7 @@ import {
   Users,
   ChefHat,
   UtensilsCrossed,
+  FileText,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -22,6 +23,7 @@ const navItems = [
   { label: 'Products',       icon: UtensilsCrossed, path: '/dashboard/products' },
   { label: 'Analytics',      icon: BarChart3,       path: '/dashboard/analytics' },
   { label: 'Revenue Intel',  icon: TrendingUp,      path: '/dashboard/revenue' },
+  { label: 'Reports',        icon: FileText,        path: '/dashboard/reports' },
   { label: 'Inventory',      icon: Package,         path: '/dashboard/inventory' },
   { label: 'Customers',      icon: Users,           path: '/dashboard/customers' },
   { label: 'Kitchen Display', icon: ChefHat,         path: '/dashboard/kitchen' },

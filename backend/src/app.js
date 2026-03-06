@@ -16,6 +16,8 @@ const customerRoutes = require('./routes/customers');
 const voiceRoutes = require('./routes/voice');
 const kotRoutes = require('./routes/kot');
 const productsRoutes = require('./routes/products');
+const reportsRoutes  = require('./routes/reports');
+const paymentsRoutes = require('./routes/payments');
 
 const app = express();
 
@@ -54,6 +56,8 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/voice', voiceRoutes);
 app.use('/api/kot', kotRoutes);
 app.use('/api/products', productsRoutes);
+app.use('/api/reports',  reportsRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

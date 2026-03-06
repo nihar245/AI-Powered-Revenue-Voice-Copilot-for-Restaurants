@@ -161,6 +161,9 @@ exports.create = async (req, res, next) => {
     // order_date allows the frontend to pass a simulation date (DATA_DATE) so new
     // orders appear in the same date bucket as the historical seed data.
     const orderDate = req.body.order_date || null;
+    // Cash orders are settled immediately; online payments stay pending until verified
+    const initialPaymentStatus = (payment_method === 'cash') ? 'paid' : 'pending';
+
     const orderRes = await client.query(
       `INSERT INTO orders (restaurant_id, customer_id, placed_by, channel, status,
         placed_at, subtotal, discount_amt, tax_amt, total, payment_status)
@@ -168,10 +171,10 @@ exports.create = async (req, res, next) => {
          CASE WHEN $8::date IS NOT NULL
               THEN ($8::date + (NOW()::time))::timestamptz
               ELSE NOW() END,
-         $4, $5, $6, $7, 'pending')
+         $4, $5, $6, $7, $9)
        RETURNING order_id`,
       [customer_id || null, placed_by || 'staff', channel || 'dine_in',
-       subtotal, discountAmt, totalTax, total, orderDate]
+       subtotal, discountAmt, totalTax, total, orderDate, initialPaymentStatus]
     );
     const orderId = orderRes.rows[0].order_id;
 

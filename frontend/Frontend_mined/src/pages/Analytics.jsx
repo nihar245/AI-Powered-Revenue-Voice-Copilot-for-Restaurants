@@ -390,7 +390,7 @@ export default function Analytics() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-200">
-                  {['Rank', 'Item', 'Category', 'Units Sold', 'Order Freq', 'Rank %', 'Classification'].map(h => (
+                  {['Rank', 'Item', 'Category', 'Units Sold', 'Velocity/Day', 'Order Freq', 'Rank %', 'Classification'].map(h => (
                     <th key={h} className="text-left text-xs text-surface-400 font-semibold uppercase tracking-wider pb-2 pr-4">{h}</th>
                   ))}
                 </tr>
@@ -402,6 +402,9 @@ export default function Analytics() {
                     <td className="py-2.5 pr-4 text-surface-900 font-medium text-xs">{row.name}</td>
                     <td className="py-2.5 pr-4 text-surface-500 text-xs">{row.category}</td>
                     <td className="py-2.5 pr-4 text-primary-600 font-bold text-xs">{row.total_sold}</td>
+                    <td className="py-2.5 pr-4 text-xs font-semibold text-surface-700">
+                      {typeof row.velocity_per_day === 'number' ? `${row.velocity_per_day.toFixed(1)}/d` : '—'}
+                    </td>
                     <td className="py-2.5 pr-4 text-surface-600 text-xs">{row.order_frequency}</td>
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center gap-2">

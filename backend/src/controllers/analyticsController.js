@@ -102,28 +102,37 @@ exports.comboRecommendations = async (req, res, next) => {
 exports.popularityScoring = async (req, res, next) => {
   try {
     const interval = parsePeriod(req);
-    const pfJoin = interval ? `AND oi.order_id IN (SELECT order_id FROM orders WHERE placed_at >= NOW() - INTERVAL '${interval}')` : '';
-    const { rows: items } = await db.query(`
-      WITH item_sales AS (
-        SELECT
-          mi.item_id,
-          mi.name,
-          mc.name AS category,
-          COALESCE(SUM(oi.qty), 0)::float AS total_sold,
-          COALESCE(COUNT(DISTINCT oi.order_id), 0)::int AS order_frequency
-        FROM menu_items mi
-        LEFT JOIN menu_categories mc ON mi.category_id = mc.category_id
-        LEFT JOIN order_items oi ON mi.item_id = oi.item_id ${pfJoin}
-        GROUP BY mi.item_id, mi.name, mc.name
-      )
-      SELECT *, RANK() OVER (ORDER BY total_sold DESC)::int AS rank
-      FROM item_sales
-      ORDER BY total_sold DESC
-    `);
+    const pfJoin   = interval ? `AND oi.order_id IN (SELECT order_id FROM orders WHERE placed_at >= NOW() - INTERVAL '${interval}')` : '';
+    const pfOrders = interval ? `WHERE placed_at >= NOW() - INTERVAL '${interval}'` : '';
+
+    const [{ rows: items }, { rows: tspan }] = await Promise.all([
+      db.query(`
+        WITH item_sales AS (
+          SELECT
+            mi.item_id,
+            mi.name,
+            mc.name AS category,
+            COALESCE(SUM(oi.qty), 0)::float AS total_sold,
+            COALESCE(COUNT(DISTINCT oi.order_id), 0)::int AS order_frequency
+          FROM menu_items mi
+          LEFT JOIN menu_categories mc ON mi.category_id = mc.category_id
+          LEFT JOIN order_items oi ON mi.item_id = oi.item_id ${pfJoin}
+          GROUP BY mi.item_id, mi.name, mc.name
+        )
+        SELECT *, RANK() OVER (ORDER BY total_sold DESC)::int AS rank
+        FROM item_sales
+        ORDER BY total_sold DESC
+      `),
+      db.query(`
+        SELECT GREATEST(1, EXTRACT(EPOCH FROM (MAX(placed_at) - MIN(placed_at))) / 86400.0)::float AS days_span
+        FROM orders ${pfOrders}
+      `),
+    ]);
 
     if (items.length === 0) return res.json([]);
 
-    const total = items.length;
+    const daysSpan = tspan[0]?.days_span || 1;
+    const total    = items.length;
     const result = items.map((item, idx) => {
       const pct = ((total - idx) / total) * 100;
       let classification;
@@ -141,6 +150,7 @@ exports.popularityScoring = async (req, res, next) => {
         rank: item.rank,
         rank_pct: Math.round(pct),
         classification,
+        velocity_per_day: parseFloat((item.total_sold / daysSpan).toFixed(2)),
       };
     });
 

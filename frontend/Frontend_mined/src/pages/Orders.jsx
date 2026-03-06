@@ -119,6 +119,8 @@ export default function Orders() {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cartItems, setCartItems] = useState([]); // { label, item_id, variant_id, price, qty, is_upsell, trigger_item_name }
   const [orderError, setOrderError] = useState(null); // null | { message, shortfalls }
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'online'
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   const handleAddToCart = (opt = menuOptions[selectedMenuIdx], qty = selectedQuantity, isUpsell = false, triggerName = null) => {
     if (qty < 1 || !opt) return;
@@ -159,6 +161,18 @@ export default function Orders() {
 
   const currentOrderTotal = cartItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
+  const resetModal = () => {
+    setIsModalOpen(false);
+    setCartItems([]);
+    setOrderError(null);
+    setCustomerSearch('');
+    setCustomerResults([]);
+    setSelectedCustomer(null);
+    setSelectedQuantity(1);
+    setPaymentMethod('cash');
+    setPaymentLoading(false);
+  };
+
   const handleCreateOrder = async () => {
     if (cartItems.length === 0) {
       alert("Add at least one item before creating an order.");
@@ -166,7 +180,7 @@ export default function Orders() {
     }
 
     const channelMap = { 'Dine-in': 'dine_in', 'Takeaway': 'takeaway', 'Delivery': 'delivery' };
-    const payload = {
+    const orderPayload = {
       channel: channelMap[newOrderType] || 'dine_in',
       customer_id: selectedCustomer?.customer_id || null,
       items: cartItems.map(ci => ({
@@ -176,31 +190,98 @@ export default function Orders() {
         is_upsell: ci.is_upsell || false,
         trigger_item_name: ci.trigger_item_name || null,
       })),
-      payment_method: 'cash',
+      payment_method: paymentMethod === 'online' ? 'razorpay' : 'cash',
     };
 
-    try {
-      await addOrder(payload);
-      setOrderError(null);
-    } catch (err) {
-      // Handle 409 stock shortfall from server
-      let parsed = null;
-      try { parsed = typeof err?.response?.data === 'object' ? err.response.data : await err?.json?.(); } catch {}
-      if (parsed?.shortfalls) {
-        setOrderError({ message: parsed.error, shortfalls: parsed.shortfalls });
-      } else {
-        setOrderError({ message: 'Failed to create order. Please try again.', shortfalls: [] });
+    // ── CASH PAYMENT ────────────────────────────────────────────────────────
+    if (paymentMethod === 'cash') {
+      try {
+        await addOrder(orderPayload);
+        setOrderError(null);
+      } catch (err) {
+        let parsed = null;
+        try { parsed = typeof err?.response?.data === 'object' ? err.response.data : await err?.json?.(); } catch {}
+        if (parsed?.shortfalls) {
+          setOrderError({ message: parsed.error, shortfalls: parsed.shortfalls });
+        } else {
+          setOrderError({ message: 'Failed to create order. Please try again.', shortfalls: [] });
+        }
+        return;
       }
-      return; // keep modal open so staff can remove the problematic item
+      resetModal();
+      return;
     }
 
-    setIsModalOpen(false);
-    setCartItems([]);
+    // ── ONLINE PAYMENT (RAZORPAY) ────────────────────────────────────────────
+    if (!window.Razorpay) {
+      setOrderError({ message: 'Razorpay checkout not loaded. Please refresh the page and try again.', shortfalls: [] });
+      return;
+    }
+
+    setPaymentLoading(true);
     setOrderError(null);
-    setCustomerSearch('');
-    setCustomerResults([]);
-    setSelectedCustomer(null);
-    setSelectedQuantity(1);
+
+    let rzpOrderData;
+    try {
+      rzpOrderData = await apiFetch('/payments/razorpay-order', {
+        method: 'POST',
+        body: JSON.stringify({ amount: currentOrderTotal }),
+      });
+    } catch {
+      setOrderError({ message: 'Failed to initiate payment. Please try again.', shortfalls: [] });
+      setPaymentLoading(false);
+      return;
+    }
+
+    const rzpOptions = {
+      key: rzpOrderData.key_id,
+      amount: rzpOrderData.amount,
+      currency: rzpOrderData.currency,
+      name: 'Restaurant',
+      description: `${newOrderType} Order`,
+      order_id: rzpOrderData.razorpay_order_id,
+      prefill: {
+        name: selectedCustomer?.name || '',
+        contact: selectedCustomer?.phone || '',
+      },
+      theme: { color: '#ef4444' },
+      handler: async function (response) {
+        try {
+          // Create the restaurant order first
+          const result = await addOrder(orderPayload);
+          // Verify Razorpay signature and mark order as paid
+          await apiFetch('/payments/verify', {
+            method: 'POST',
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              order_id: result.order_id,
+            }),
+          });
+          resetModal();
+        } catch (err) {
+          let parsed = null;
+          try { parsed = typeof err?.response?.data === 'object' ? err.response.data : await err?.json?.(); } catch {}
+          if (parsed?.shortfalls) {
+            setOrderError({ message: parsed.error, shortfalls: parsed.shortfalls });
+          } else {
+            setOrderError({ message: 'Payment received but order could not be confirmed. Please contact support.', shortfalls: [] });
+          }
+          setPaymentLoading(false);
+        }
+      },
+      modal: {
+        ondismiss: () => {
+          setOrderError({ message: 'Payment cancelled. Order was not placed.', shortfalls: [] });
+          setPaymentLoading(false);
+        },
+      },
+    };
+
+    const rzp = new window.Razorpay(rzpOptions);
+    rzp.open();
+    setPaymentLoading(false);
   };
 
   const handleAddUpsell = () => {
@@ -461,7 +542,7 @@ export default function Orders() {
           <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-surface-200 flex items-center justify-between bg-zinc-50">
               <h2 className="text-lg font-bold text-zinc-900">Create New Order</h2>
-              <button onClick={() => { setIsModalOpen(false); setOrderError(null); }} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
+              <button onClick={() => { resetModal(); }} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
@@ -628,11 +709,48 @@ export default function Orders() {
                     <span className="text-xs font-medium text-zinc-500 uppercase">Total</span>
                     <span className="text-lg font-bold text-zinc-900">₹{currentOrderTotal}</span>
                   </div>
+
+                  {/* Payment Method Selector */}
+                  <div className="mb-3">
+                    <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest mb-1.5">Payment</p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => setPaymentMethod('cash')}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                          paymentMethod === 'cash'
+                            ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                            : 'bg-surface-50 border-surface-200 text-zinc-500 hover:bg-surface-100'
+                        }`}
+                      >
+                        💵 Cash
+                      </button>
+                      <button
+                        onClick={() => setPaymentMethod('online')}
+                        className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                          paymentMethod === 'online'
+                            ? 'bg-blue-50 border-blue-400 text-blue-700'
+                            : 'bg-surface-50 border-surface-200 text-zinc-500 hover:bg-surface-100'
+                        }`}
+                      >
+                        📱 Online
+                      </button>
+                    </div>
+                  </div>
+
                   <button
                     onClick={handleCreateOrder}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors shadow-sm"
+                    disabled={paymentLoading}
+                    className={`w-full font-bold py-2.5 rounded-lg text-sm transition-colors shadow-sm disabled:opacity-60 disabled:cursor-wait ${
+                      paymentMethod === 'online'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-red-500 hover:bg-red-600 text-white'
+                    }`}
                   >
-                    Create Order
+                    {paymentLoading
+                      ? 'Processing…'
+                      : paymentMethod === 'online'
+                        ? `Pay ₹${currentOrderTotal} Online`
+                        : 'Create Order (Cash)'}
                   </button>
                   {orderError && (
                     <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3">
