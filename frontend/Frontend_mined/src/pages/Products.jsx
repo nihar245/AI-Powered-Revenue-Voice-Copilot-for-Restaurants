@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../config'
-import { Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Package, Leaf, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Package, Leaf, Search, ChefHat } from 'lucide-react'
 
 const badgeColor = {
   veg: 'text-emerald-700 bg-emerald-50 border-emerald-200',
@@ -36,12 +36,22 @@ export default function Products() {
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
 
+  const emptyVariant = { variant_name: 'Regular', selling_price: '', gst_pct: 5, food_cost: '', recipe: [], _pickerIngId: '', _pickerQty: '' }
   const emptyForm = {
     name: '', description: '', category_id: '', is_veg: true, is_jain: false,
     tags: '', image_url: '',
-    variants: [{ variant_name: 'Regular', selling_price: '', gst_pct: 5, food_cost: '' }],
+    variants: [{ ...emptyVariant }],
   }
   const [form, setForm] = useState(emptyForm)
+  const [ingredientsList, setIngredientsList] = useState([])
+
+  useEffect(() => {
+    if (showForm && ingredientsList.length === 0) {
+      apiFetch('/products/ingredients').then(data => {
+        if (Array.isArray(data)) setIngredientsList(data)
+      }).catch(console.error)
+    }
+  }, [showForm])
 
   const reload = () => {
     setLoading(true)
@@ -85,6 +95,15 @@ export default function Products() {
           selling_price: String(v.selling_price),
           gst_pct: v.gst_pct,
           food_cost: String(v.food_cost ?? ''),
+          recipe: Array.isArray(v.recipe) ? v.recipe.map(r => ({
+            ing_id: r.ing_id,
+            qty_required: r.qty_required,
+            name: r.ingredient,
+            unit: r.unit,
+            unit_cost: r.unit_cost,
+          })) : [],
+          _pickerIngId: '',
+          _pickerQty: '',
         })),
       })
       setEditId(id)
@@ -106,6 +125,7 @@ export default function Products() {
           selling_price: parseFloat(v.selling_price) || 0,
           gst_pct: parseFloat(v.gst_pct) || 5,
           food_cost: parseFloat(v.food_cost) || 0,
+          recipe: v.recipe.map(r => ({ ing_id: r.ing_id, qty_required: r.qty_required })),
         })),
       }
       if (editId) {
@@ -129,9 +149,46 @@ export default function Products() {
     } catch (e) { console.error(e) }
   }
 
-  const addVariant = () => setForm(f => ({ ...f, variants: [...f.variants, { variant_name: '', selling_price: '', gst_pct: 5, food_cost: '' }] }))
+  const addVariant = () => setForm(f => ({ ...f, variants: [...f.variants, { variant_name: '', selling_price: '', gst_pct: 5, food_cost: '', recipe: [], _pickerIngId: '', _pickerQty: '' }] }))
   const removeVariant = (vi) => setForm(f => ({ ...f, variants: f.variants.filter((_, i) => i !== vi) }))
   const updateVariant = (vi, field, val) => setForm(f => ({ ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, [field]: val } : v) }))
+
+  const addRecipeLine = (vi) => {
+    setForm(f => {
+      const v = f.variants[vi]
+      const ing = ingredientsList.find(i => i.ing_id === parseInt(v._pickerIngId))
+      if (!ing) return f
+      const qty = parseFloat(v._pickerQty)
+      if (!qty || qty <= 0) return f
+      const existIdx = v.recipe.findIndex(r => r.ing_id === ing.ing_id)
+      const newRecipe = existIdx >= 0
+        ? v.recipe.map((r, i) => i === existIdx ? { ...r, qty_required: qty } : r)
+        : [...v.recipe, { ing_id: ing.ing_id, qty_required: qty, name: ing.name, unit: ing.unit, unit_cost: ing.cost_per_unit }]
+      const computedCost = newRecipe.reduce((s, r) => s + r.qty_required * r.unit_cost, 0)
+      return {
+        ...f,
+        variants: f.variants.map((variant, i) => i === vi
+          ? { ...variant, recipe: newRecipe, food_cost: computedCost.toFixed(2), _pickerIngId: '', _pickerQty: '' }
+          : variant
+        )
+      }
+    })
+  }
+
+  const removeRecipeLine = (vi, ingId) => {
+    setForm(f => {
+      const v = f.variants[vi]
+      const newRecipe = v.recipe.filter(r => r.ing_id !== ingId)
+      const computedCost = newRecipe.reduce((s, r) => s + r.qty_required * r.unit_cost, 0)
+      return {
+        ...f,
+        variants: f.variants.map((variant, i) => i === vi
+          ? { ...variant, recipe: newRecipe, food_cost: newRecipe.length > 0 ? computedCost.toFixed(2) : variant.food_cost }
+          : variant
+        )
+      }
+    })
+  }
 
   const totalProducts = products.length
   const activeProducts = products.filter(p => p.is_available).length
@@ -362,9 +419,19 @@ export default function Products() {
                           className="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="0" />
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-surface-600 block mb-1">Food Cost (₹) *</label>
-                        <input type="number" min="0" step="any" value={v.food_cost} onChange={e => updateVariant(vi, 'food_cost', e.target.value)}
-                          className="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="0" />
+                        <label className="text-xs font-medium text-surface-600 block mb-1">
+                          Food Cost (₹)
+                          {v.recipe.length > 0 && <span className="ml-1 text-violet-500 font-normal">(auto)</span>}
+                        </label>
+                        <input type="number" min="0" step="any" value={v.food_cost}
+                          onChange={e => updateVariant(vi, 'food_cost', e.target.value)}
+                          readOnly={v.recipe.length > 0}
+                          className={`w-full border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 ${
+                            v.recipe.length > 0
+                              ? 'bg-violet-50 border-violet-200 text-violet-700 font-semibold cursor-not-allowed'
+                              : 'border-surface-200'
+                          }`}
+                          placeholder="0" />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-surface-600 block mb-1">GST %</label>
@@ -374,7 +441,7 @@ export default function Products() {
                     </div>
 
                     {/* Cost summary */}
-                    <div className="flex gap-4 mb-3 text-xs">
+                    <div className="flex gap-4 mb-4 text-xs flex-wrap">
                       <div className="px-3 py-1.5 rounded-md bg-white border border-surface-200">
                         <span className="text-surface-400">Food Cost:</span>{' '}
                         <span className="font-bold text-surface-700">₹{foodCost.toFixed(2)}</span>
@@ -387,6 +454,90 @@ export default function Products() {
                         <span className="text-surface-400">Profit:</span>{' '}
                         <span className={`font-bold ${parseFloat(profit) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>₹{profit}</span>
                       </div>
+                    </div>
+
+                    {/* ── Recipe / Ingredients ── */}
+                    <div className="border-t border-surface-200 pt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1.5">
+                          <ChefHat size={13} className="text-violet-500" />
+                          <span className="text-xs font-semibold text-surface-600 uppercase tracking-wide">Ingredients / Recipe</span>
+                        </div>
+                        {v.recipe.length > 0 && (
+                          <span className="text-[10px] text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full font-semibold">
+                            Food cost auto-calculated
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Recipe lines table */}
+                      {v.recipe.length > 0 && (
+                        <div className="mb-3 rounded-lg overflow-hidden border border-surface-200">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-surface-50 border-b border-surface-200">
+                                <th className="text-left px-3 py-1.5 text-surface-400 font-semibold">Ingredient</th>
+                                <th className="text-center px-2 py-1.5 text-surface-400 font-semibold">Qty</th>
+                                <th className="text-right px-2 py-1.5 text-surface-400 font-semibold">Unit Cost</th>
+                                <th className="text-right px-2 py-1.5 text-surface-400 font-semibold">Line Cost</th>
+                                <th className="w-6" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-100">
+                              {v.recipe.map(r => (
+                                <tr key={r.ing_id} className="bg-white hover:bg-surface-50 transition-colors">
+                                  <td className="px-3 py-1.5 text-surface-700 font-medium">{r.name}</td>
+                                  <td className="px-2 py-1.5 text-surface-500 text-center">{r.qty_required} {r.unit}</td>
+                                  <td className="px-2 py-1.5 text-surface-500 text-right">₹{Number(r.unit_cost).toFixed(2)}</td>
+                                  <td className="px-2 py-1.5 font-semibold text-violet-700 text-right">
+                                    ₹{(r.qty_required * r.unit_cost).toFixed(2)}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center">
+                                    <button onClick={() => removeRecipeLine(vi, r.ing_id)}
+                                      className="text-red-400 hover:text-red-600 transition-colors">
+                                      <X size={12} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="bg-violet-50 border-t border-violet-100">
+                                <td colSpan={3} className="px-3 py-1.5 text-xs font-semibold text-violet-700">Total Food Cost</td>
+                                <td className="px-2 py-1.5 text-right font-bold text-violet-700">
+                                  ₹{v.recipe.reduce((s, r) => s + r.qty_required * r.unit_cost, 0).toFixed(2)}
+                                </td>
+                                <td />
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Ingredient picker */}
+                      <div className="flex gap-2 items-center">
+                        <select value={v._pickerIngId}
+                          onChange={e => updateVariant(vi, '_pickerIngId', e.target.value)}
+                          className="flex-1 border border-surface-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white min-w-0">
+                          <option value="">+ Select ingredient…</option>
+                          {ingredientsList.map(i => (
+                            <option key={i.ing_id} value={i.ing_id}>
+                              {i.name} ({i.unit}) — ₹{Number(i.cost_per_unit).toFixed(2)}/unit
+                            </option>
+                          ))}
+                        </select>
+                        <input type="number" min="0.001" step="any" value={v._pickerQty}
+                          onChange={e => updateVariant(vi, '_pickerQty', e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && addRecipeLine(vi)}
+                          className="w-20 border border-surface-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-violet-300 text-center"
+                          placeholder="Qty" />
+                        <button onClick={() => addRecipeLine(vi)}
+                          disabled={!v._pickerIngId || !v._pickerQty}
+                          className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 disabled:opacity-40 transition-colors flex items-center gap-1 shrink-0">
+                          <Plus size={12} /> Add
+                        </button>
+                      </div>
+                      {ingredientsList.length === 0 && (
+                        <p className="text-[10px] text-surface-400 mt-1.5">Loading ingredients…</p>
+                      )}
                     </div>
 
                   </div>

@@ -7,7 +7,6 @@ import {
   ShoppingCart,
   RotateCcw,
   Zap,
-  Languages,
   X,
   AlertCircle,
   Volume2,
@@ -301,29 +300,6 @@ export default function VoiceOrder() {
         {/* Left column */}
         <div className="lg:col-span-2 space-y-5">
 
-          {/* Language + table selectors */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {SUPPORTED_LANGS.map(l => (
-              <button
-                key={l.code}
-                onClick={() => setLanguage(l.code)}
-                className={`text-xs px-3 py-1 rounded-full border font-medium transition-all
-                  ${language === l.code
-                    ? 'bg-primary-50 text-primary-600 border-primary-200'
-                    : 'text-surface-500 border-surface-200 bg-surface-50'}`}
-              >
-                <Languages size={11} className="inline mr-1" />
-                {l.label}
-              </button>
-            ))}
-            <input
-              value={tableId}
-              onChange={e => setTableId(e.target.value)}
-              placeholder="Table ID"
-              className="text-xs px-3 py-1 rounded-full border border-surface-200 bg-surface-50 text-surface-600 w-20 focus:outline-none focus:border-primary-300"
-            />
-          </div>
-
           {/* Microphone */}
           <div className="card p-8 flex flex-col items-center gap-6">
             <div className="relative">
@@ -504,16 +480,21 @@ export default function VoiceOrder() {
                 <>
                   <div className="space-y-3 mb-4">
                     {cart.map(item => {
+                      // size is shown as variant label — exclude it from the inline modifier list
                       const modEntries = Object.entries(item.modifiers || {}).filter(
-                        ([k, v]) => k !== 'add_ons' && v
+                        ([k, v]) => k !== 'add_ons' && k !== 'size' && v
                       )
                       const addOns = item.modifiers?.add_ons || []
+                      // Prefer the live modifiers.size over the stale variant_name
+                      const sizeLabel = item.modifiers?.size
+                        ? item.modifiers.size.charAt(0).toUpperCase() + item.modifiers.size.slice(1)
+                        : item.variant_name
                       return (
                         <div key={item._key} className="flex items-start justify-between text-sm">
                           <div className="flex-1 min-w-0">
                             <p className="text-surface-900 font-medium">{item.name}</p>
-                            {item.variant_name && (
-                              <p className="text-surface-500 text-xs">{item.variant_name}</p>
+                            {sizeLabel && (
+                              <p className="text-surface-500 text-xs">{sizeLabel}</p>
                             )}
                             <p className="text-surface-400 text-xs">
                               Qty: {item.quantity}
@@ -527,18 +508,32 @@ export default function VoiceOrder() {
                             )}
                           </div>
                           <span className="text-surface-500 shrink-0 ml-2">
-                            Rs.{(item.unit_price * item.quantity).toFixed(0)}
+                            ₹{(item.unit_price * item.quantity).toFixed(0)}
                           </span>
                         </div>
                       )
                     })}
                   </div>
-                  <div className="border-t border-dashed border-surface-200 pt-3 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-surface-400 text-sm">Total</span>
-                      <span className="text-surface-900 font-bold text-lg">{cartTotal}</span>
-                    </div>
-                  </div>
+                  {(() => {
+                    const subtotal = cart.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+                    const taxAmt   = cart.reduce((s, i) => s + i.unit_price * i.quantity * (i.tax_rate ?? 5) / 100, 0)
+                    return (
+                      <div className="border-t border-dashed border-surface-200 pt-3 mb-4 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-surface-400 text-xs">Subtotal</span>
+                          <span className="text-surface-500 text-xs">₹{subtotal.toFixed(0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-surface-400 text-xs">Tax (5%)</span>
+                          <span className="text-surface-500 text-xs">₹{taxAmt.toFixed(0)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-surface-200 pt-1.5">
+                          <span className="text-surface-700 text-sm font-semibold">Total</span>
+                          <span className="text-surface-900 font-bold text-lg">{cartTotal}</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                   <button
                     onClick={handleConfirm}
                     disabled={confirming || cart.length === 0}
@@ -559,7 +554,6 @@ export default function VoiceOrder() {
               </p>
               {[
                 { label: 'Language', value: SUPPORTED_LANGS.find(l => l.code === language)?.label || language },
-                { label: 'Table',    value: tableId },
                 { label: 'Model',    value: 'Gemini Live' },
                 { label: 'Turn',     value: turn || '—' },
                 ...(timings ? [

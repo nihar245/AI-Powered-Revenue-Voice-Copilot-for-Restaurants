@@ -119,22 +119,23 @@ def _detect_language(text: str) -> str:
 
 # ─── Response tag parser ─────────────────────────────────────────────────────
 
-def _parse_response_tags(text: str) -> tuple[str, str, str, str]:
+def _parse_response_tags(text: str) -> tuple[str, list[str], str, str]:
     """
     Extract [CMD:], [ROMAN:] and [TRANSCRIPT:] tags from Gemini's output_audio_transcription.
-    Returns (clean_response, cmd_hint, roman_display, transcript_display).
+    Returns (clean_response, cmd_hints_list, roman_display, transcript_display).
+
+    Supports multiple [CMD:] tags per turn (compound intents like modify + remove).
     Tags are stripped so they are never shown to the user or spoken aloud.
     """
-    cmd_m        = re.search(r'\[CMD:\s*(.*?)\]',        text, re.DOTALL | re.IGNORECASE)
+    cmd_hints    = [m.group(1).strip() for m in re.finditer(r'\[CMD:\s*(.*?)\]', text, re.DOTALL | re.IGNORECASE)]
     roman_m      = re.search(r'\[ROMAN:\s*(.*?)\]',      text, re.DOTALL | re.IGNORECASE)
     transcript_m = re.search(r'\[TRANSCRIPT:\s*(.*?)\]', text, re.DOTALL | re.IGNORECASE)
-    cmd_hint          = cmd_m.group(1).strip()        if cmd_m        else ""
     roman_text        = roman_m.group(1).strip()      if roman_m      else ""
     transcript_roman  = transcript_m.group(1).strip() if transcript_m else ""
     clean = re.sub(r'\[CMD:.*?\]',        '', text,  flags=re.DOTALL | re.IGNORECASE)
     clean = re.sub(r'\[ROMAN:.*?\]',      '', clean, flags=re.DOTALL | re.IGNORECASE)
     clean = re.sub(r'\[TRANSCRIPT:.*?\]', '', clean, flags=re.DOTALL | re.IGNORECASE).strip()
-    return clean, cmd_hint, roman_text, transcript_roman
+    return clean, cmd_hints, roman_text, transcript_roman
 
 
 # ─── Live session ─────────────────────────────────────────────────────────────
@@ -280,7 +281,7 @@ async def voice_turn(
     pcm_out   = b"".join(audio_chunks)
     audio_b64 = base64.b64encode(_pcm_to_wav(pcm_out)).decode() if pcm_out else ""
 
-    clean_response, cmd_hint, roman_display, transcript_roman = _parse_response_tags(output_transcript)
+    clean_response, cmd_hints, roman_display, transcript_roman = _parse_response_tags(output_transcript)
 
     # Prefer TRANSCRIPT tag (Gemini's own transliteration) over raw input_transcript
     # which may still arrive in native script despite the instruction.
@@ -293,6 +294,7 @@ async def voice_turn(
         "transcript_display":  transcript_display,          # Roman transliteration → shown in UI
         "response_text":       clean_response,              # clean native-script response
         "response_display":    roman_display or clean_response,  # Roman transliteration → shown in UI
-        "cmd_hint":            cmd_hint,
+        "cmd_hints":           cmd_hints,                   # list of [CMD:] tag values (may be multiple)
+        "cmd_hint":            cmd_hints[0] if cmd_hints else "",  # backward compat
         "language":            _detect_language(input_transcript),
     }

@@ -326,9 +326,45 @@ exports.upsellRecommendations = async (req, res, next) => {
 // ──── Price Recommendations (rule engine on menu engineering) ─────────────────
 exports.priceRecommendations = async (req, res, next) => {
   try {
+    // ── 1. Try ML service ─────────────────────────────────────────────────────
+    const mlResult = await mlService.get('/predict/menu-optimization');
+    if (mlResult?.price_recommendations?.length > 0) {
+      const recommendations = mlResult.price_recommendations.map(item => ({
+        item_id:                    item.item_id,
+        item_name:                  item.name,
+        category:                   item.category,
+        bcg_class:                  item.bcg_class,
+        classification:             item.bcg_class,   // backward-compat alias
+        variant_name:               item.variant_name || null,
+        current_price:              item.current_price,
+        suggested_price:            item.suggested_price,
+        price_change_pct:           item.price_change_pct,
+        direction:                  item.direction,
+        reason:                     item.reason,
+        actual_margin_pct:          item.actual_margin_pct,
+        category_target_margin_pct: item.category_target_margin_pct,
+        margin_gap_pp:              item.margin_gap_pp,
+        demand_percentile:          item.demand_percentile,
+        demand_dampen_factor:       item.demand_dampen_factor,
+        elasticity_cap_up:          item.elasticity_cap_up,
+        elasticity_cap_down:        item.elasticity_cap_down,
+        window_days:                item.window_days,
+        is_new_item:                item.is_new_item || false,
+      }));
+      return res.json({
+        recommendations,
+        category_targets: mlResult.category_targets || {},
+        source:           'ml_dynamic',
+        generated_at:     mlResult.generated_at || null,
+        window_days:      mlResult.window_days   || 60,
+      });
+    }
+
+    // ── 2. Fallback: rule-based BCG price recommendations ─────────────────────
     const interval = parsePeriod(req);
-    const pf = interval ? `AND oi.order_id IN (SELECT order_id FROM orders WHERE placed_at >= NOW() - INTERVAL '${interval}')` : '';
-    // Reuse menu-engineering logic inline
+    const pf = interval
+      ? `AND oi.order_id IN (SELECT order_id FROM orders WHERE placed_at >= NOW() - INTERVAL '${interval}')`
+      : '';
     const { rows: items } = await db.query(`
       WITH item_perf AS (
         SELECT
@@ -348,7 +384,9 @@ exports.priceRecommendations = async (req, res, next) => {
       SELECT * FROM item_perf ORDER BY sales_velocity DESC
     `);
 
-    if (items.length === 0) return res.json([]);
+    if (items.length === 0) {
+      return res.json({ recommendations: [], source: 'fallback_dynamic', window_days: 60 });
+    }
 
     const sorted_sv = items.map(i => i.sales_velocity).sort((a, b) => a - b);
     const sorted_cm = items.map(i => i.cm_per_unit).sort((a, b) => a - b);
@@ -377,17 +415,19 @@ exports.priceRecommendations = async (req, res, next) => {
         }
         if (!factor) return null;
         return {
-          item_name: i.name,
-          variant_name: i.variant_name,
-          current_price: i.current_price,
+          item_name:       i.name,
+          variant_name:    i.variant_name,
+          current_price:   i.current_price,
           suggested_price: Math.round(i.current_price * factor),
+          bcg_class:       classification,
           classification,
           reason,
+          is_new_item:     false,
         };
       })
       .filter(Boolean);
 
-    res.json(recommendations);
+    res.json({ recommendations, source: 'fallback_dynamic', window_days: 60 });
   } catch (err) {
     next(err);
   }

@@ -1,0 +1,683 @@
+################################################################################
+# nihar.yaml
+# Handoff document for Nihar — two completed feature modules:
+#   A. Combo Suggestions on the Orders page
+#   B. Price Recommendations on the Revenue (Analytics) page
+#
+# Project: AI-Powered Revenue Voice Copilot for Restaurants
+# Stack:   React + Vite (frontend) · Node/Express (backend) · FastAPI (ML)
+#          PostgreSQL (postgres1, port 5432, user=postgres, pw=password)
+# Ports:   Frontend → 5173  Backend → 3000  ML service → 8000
+################################################################################
+
+---
+meta:
+  author: Parth
+  date: 2026-03-06
+  purpose: >
+    Complete handoff of two production features so Nihar can understand,
+    extend, debug, or demo them without needing to reverse-engineer the code.
+  repo_root: /Users/parthsrivastava/Desktop/harsh/AI-Powered-Revenue-Voice-Copilot-for-Restaurants
+
+################################################################################
+# FEATURE A — Suggested Combos (Orders Page)
+################################################################################
+
+feature_a:
+  name: "Suggested Combos — Orders Page"
+  summary: >
+    Every time train.py is run, FP-Growth mines the order history for item
+    pairs and triplets that are frequently bought together.  The top 40
+    combos (ranked by score) are written to the menu_combos table.
+    A new REST endpoint serves them paginated.  The Orders page shows a
+    horizontal orange card strip above the order table — 5 combos per page,
+    up to 9 pages — with an "Add Combo" button that drops every item from
+    the combo into the cart and opens the New Order modal.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # DATABASE
+  # ────────────────────────────────────────────────────────────────────────────
+  database:
+    tables_touched:
+      menu_combos:
+        description: >
+          Stores every manually-created AND auto-mined combo.
+          Auto-mined rows are identified by description = 'auto_mined'.
+          On each retrain, ALL auto_mined rows are deleted and re-inserted
+          (DELETE → INSERT pattern inside a single transaction).
+        columns_added_by_migration_002:
+          - name: combo_size
+            type: INT DEFAULT 2
+            meaning: Number of distinct items in the combo (2 = pair, 3 = triplet)
+          - name: combo_score
+            type: NUMERIC(8,4) DEFAULT 0
+            meaning: >
+              Composite score used for frontend ranking.
+              Formula: min(100, lift × 20 + support × 100)
+          - name: lift
+            type: NUMERIC(8,4) DEFAULT 1
+            meaning: >
+              Market-basket lift for the full itemset.
+              lift = P(A∩B∩…) / (P(A) × P(B) × …)
+              Higher = the items are bought together much more often than chance.
+        existing_columns_still_used:
+          - combo_id        # PK, serial
+          - combo_name      # "Chicken Biryani + Raita"
+          - description     # 'auto_mined' flag
+          - selling_price   # combo price (discounted)
+          - food_cost       # sum of food costs for all items
+          - is_active       # always true for auto-mined
+          - valid_from      # CURRENT_DATE at insert time
+
+      combo_items:
+        description: Maps each combo to its constituent menu items (one row per item).
+        columns:
+          - combo_item_id  # PK
+          - combo_id       # FK → menu_combos
+          - item_id        # FK → menu_items
+          - variant_id     # nullable (auto-mined rows leave this NULL)
+          - qty            # always 1 for auto-mined rows
+
+    migration_file: backend/migrations/002_combo_intelligence.sql
+    migration_is_idempotent: true   # uses ADD COLUMN IF NOT EXISTS, safe to re-run
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # ML SERVICE — how combos get mined and written
+  # ────────────────────────────────────────────────────────────────────────────
+  ml_pipeline:
+    file: ml_service/train.py
+    function: train_menu()
+    triggered_by: "python train.py  (manual) or POST /train on ML service"
+
+    fpgrowth_config:
+      library: mlxtend.frequent_patterns.fpgrowth + association_rules
+      min_support: 0.01          # item-set must appear in ≥1% of orders
+      min_lift_for_rules: 0.75   # association rule filter
+      basket_unit: order_id      # one basket = one order
+      window: "last 60 days from MAX(placed_at)"
+
+    itemset_sizes_mined: [2, 3]
+    top_combos_written_to_db: 40   # sorted by combo_score DESC
+
+    scoring_formula: |
+      # For each 2- or 3-item frequent itemset:
+      sup       = itemset support (fraction of orders containing all items)
+      probs     = individual item support values (from item_freq dict)
+      expected  = product of all individual probs
+      set_lift  = sup / (expected + 1e-9)
+      discount  = 0.12 if triplet else 0.10
+      t_price   = sum of AVG(selling_price) for all items in set
+      t_cost    = sum of AVG(food_cost) for all items in set
+      combo_p   = psychological_round( max(t_price * (1 - discount),  t_cost * 1.3) )
+      cscore    = min(100.0,  set_lift * 20  +  sup * 100)
+
+    psychological_round: |
+      # Snap prices to psychologically appealing numbers:
+      price < 100  →  (round to nearest 10) - 1   →  ₹19, ₹29, ₹49, ₹99
+      price < 300  →  (round to nearest 50) - 1   →  ₹149, ₹199, ₹249
+      price < 600  →  round to nearest 50          →  ₹350, ₹400
+      price ≥ 600  →  round to nearest 100         →  ₹700, ₹800
+
+    db_write_logic: |
+      # Inside engine.begin() — single transaction:
+      1. DELETE FROM combo_items WHERE combo_id IN
+             (SELECT combo_id FROM menu_combos WHERE description = 'auto_mined')
+      2. DELETE FROM menu_combos WHERE description = 'auto_mined'
+      3. For each of the top-40 scored combos:
+           INSERT INTO menu_combos (combo_name, description, selling_price,
+                                    food_cost, combo_size, combo_score, lift, is_active)
+           VALUES (...)  RETURNING combo_id
+           → Then INSERT one row per item into combo_items
+
+    important_type_note: >
+      All numeric values passed to SQLAlchemy (price, cost, score, lift) are
+      explicitly cast to Python float() before insertion to avoid
+      psycopg2.errors.InvalidSchemaName caused by numpy scalar types leaking
+      into the SQL parameter dict.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BACKEND API
+  # ────────────────────────────────────────────────────────────────────────────
+  backend_api:
+    new_route_file:    backend/src/routes/combos.js
+    new_controller:    backend/src/controllers/combosController.js
+    mounted_in_app_js: "app.use('/api/combos', combosRoutes)"
+    auth_required: true   # JWT middleware applied on router
+
+    endpoint:
+      method: GET
+      path: /api/combos/suggestions
+      query_params:
+        page:
+          type: integer
+          default: 1
+          min: 1
+        limit:
+          type: integer
+          default: 5
+          max: 20
+      response_shape: |
+        {
+          total: 44,              // total active combos in DB
+          page: 1,
+          limit: 5,
+          total_pages: 9,
+          combos: [
+            {
+              combo_id: 29,
+              combo_name: "Chicken Biryani + Raita",
+              combo_label: "Chicken Biryani + Raita",   // derived from items
+              description: "auto_mined",
+              combo_size: 2,
+              combo_price: 300,          // selling_price from menu_combos
+              original_price: 350,       // sum of individual item avg prices
+              saving: 50,                // original_price - combo_price (floor 0)
+              saving_pct: 14,            // (saving / original_price) * 100
+              combo_score: 49.95,
+              lift: 2.274,
+              items: [
+                { item_id: 18, name: "Chicken Biryani", price: 300, qty: 1 },
+                { item_id: 30, name: "Raita",           price: 50,  qty: 1 }
+              ]
+            },
+            ...
+          ]
+        }
+      sql_logic: |
+        Step 1 — COUNT(*) FROM menu_combos WHERE is_active = true  →  total
+        Step 2 — SELECT with LIMIT/OFFSET, ordered by:
+                   COALESCE(combo_score, 0) DESC,
+                   COALESCE(combo_size,  2) DESC,
+                   combo_id ASC
+        Step 3 — Fetch all combo_items for the returned combo_ids in ONE query
+                 (JOIN menu_items, LEFT JOIN menu_variants, GROUP BY for avg price)
+        Step 4 — Group items by combo_id in JS, compute original_price / saving
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # FRONTEND
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend:
+    new_component:
+      file: frontend/Frontend_mined/src/components/ComboSuggestions.jsx
+      props:
+        onAddCombo:
+          type: function
+          signature: "(combo) => void"
+          description: >
+            Called when user clicks "Add Combo" on any card.
+            The combo object has the full API response shape (see above).
+      internal_state:
+        data:    "{ combos, total, total_pages } — fetched from API"
+        page:    "current page number (1-based)"
+        loading: "boolean — shows skeleton cards while fetching"
+      behaviour:
+        - "Fetches /combos/suggestions?page={page}&limit=5 whenever page changes"
+        - "Returns null (renders nothing) if fetch completes and combos is empty"
+        - "Shows 5 skeleton cards (animate-pulse) while loading"
+        - "Pagination bar visible only when total_pages > 1"
+        - "Each card shows: size badge (Pair / 3-item), lift badge if lift > 2×,
+           item names, combo price, savings amount, Add Combo button"
+        - "Horizontal scroll (overflow-x-auto) so all 5 cards are visible on most screens"
+      styling: >
+        Orange-themed (border-orange-200, bg-orange-50 gradient, text-orange-700).
+        Lift badge is emerald-green bg-emerald-100 text-emerald-600.
+        Cards are w-44 (176px) fixed width, h auto, rounded-xl, white bg, shadow-sm.
+
+    orders_page_changes:
+      file: frontend/Frontend_mined/src/pages/Orders.jsx
+      import_added: "import ComboSuggestions from '../components/ComboSuggestions'"
+      new_handler: |
+        const handleAddCombo = (combo) => {
+          for (const item of (combo.items || [])) {
+            const opt = menuOptions.find(o => o.item_id === item.item_id)
+            if (opt) handleAddToCart(opt, item.qty || 1, false, null)
+          }
+          setIsModalOpen(true)   // opens the New Order modal with items pre-loaded
+        }
+      jsx_placement: >
+        <ComboSuggestions onAddCombo={handleAddCombo} />
+        is placed BETWEEN the filter/search bar and
+        <div className="flex gap-6 items-start flex-1 min-h-0">
+        (which contains the orders table + side panel).
+        This means it sits above the table, below the status filter buttons.
+      handleAddToCart_behaviour: >
+        If the item variant is already in the cart, it increments qty.
+        If can_make is false (inventory blocked), the item is silently skipped.
+        is_upsell is passed as false so the combo items are treated as normal cart items.
+
+    existing_upsell_system_unchanged: >
+      The old comboRecs state (fetched from /api/revenue/top-combos) still exists.
+      It powers the REACTIVE upsell panel inside the New Order modal —
+      when you add item A to the cart, it suggests item B that is frequently
+      bought with A.  This is separate from ComboSuggestions (which is
+      proactive / always visible).  Do NOT remove or replace comboRecs.
+
+################################################################################
+# FEATURE B — Price Recommendations (Revenue / Analytics Page)
+################################################################################
+
+feature_b:
+  name: "AI Price Recommendations — Revenue Page"
+  summary: >
+    The Revenue page has a "Price Recommendations" tab that shows a table of
+    every menu item with its current price, ML-suggested price, % change,
+    direction arrow, and a plain-English reason.
+    New items (< 50 lifetime orders, or zero orders in the 60-day window)
+    are flagged with a 🆕 badge and undergo a gentler, margin-only pricing
+    algorithm with half the normal elasticity cap.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # DATABASE
+  # ────────────────────────────────────────────────────────────────────────────
+  database:
+    tables_and_views_added:
+
+      price_change_log:
+        migration_file: backend/migrations/003_price_optimization.sql
+        purpose: >
+          Audit trail for every accepted price change.
+          The actual_elasticity column feeds back into the NEXT training run
+          to make the model more cautious on items whose demand was hurt by
+          a prior price change.
+        columns:
+          id:                  SERIAL PK
+          item_id:             INT FK → menu_items
+          item_name:           TEXT
+          old_price:           NUMERIC(10,2)
+          recommended_price:   NUMERIC(10,2)
+          change_pct:          NUMERIC(6,2)
+          direction:           TEXT  # 'increase' | 'decrease' | 'maintain'
+          reason:              TEXT
+          status:              TEXT DEFAULT 'pending'  # 'pending' | 'accepted' | 'rejected'
+          actual_elasticity:   NUMERIC(8,4)   # filled later when admin records actual demand impact
+          recommended_at:      TIMESTAMPTZ DEFAULT NOW()
+          changed_at:          TIMESTAMPTZ
+
+      menu_items_new_columns:
+        migration_file: backend/migrations/003_price_optimization.sql
+        columns_added:
+          - first_ordered_at:   TIMESTAMPTZ  # earliest order containing this item
+          - total_orders_ever:  INT DEFAULT 0  # lifetime order count (backfilled)
+        backfill_logic: |
+          UPDATE menu_items mi
+          SET total_orders_ever = sub.cnt
+          FROM (SELECT item_id, COUNT(*) AS cnt FROM order_items GROUP BY item_id) sub
+          WHERE mi.item_id = sub.item_id;
+
+          UPDATE menu_items mi
+          SET first_ordered_at = sub.first_at
+          FROM (SELECT oi.item_id, MIN(o.placed_at) AS first_at
+                FROM order_items oi JOIN orders o USING(order_id)
+                GROUP BY oi.item_id) sub
+          WHERE mi.item_id = sub.item_id;
+
+      new_items_view:
+        migration_file: backend/migrations/004_new_item_support.sql
+        definition: |
+          CREATE OR REPLACE VIEW new_items_view AS
+          SELECT
+            mi.item_id,
+            mi.name,
+            mi.total_orders_ever,
+            mi.first_ordered_at,
+            (
+              COALESCE(mi.total_orders_ever, 0) < 50
+              OR mi.first_ordered_at > NOW() - INTERVAL '30 days'
+            ) AS is_new_item
+          FROM menu_items mi;
+        note: >
+          train.py does NOT use this view directly — it recomputes new_items_set
+          from raw SQL for reliability.  The view exists for use by custom queries
+          and future dashboards.
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # ML PIPELINE — pricing algorithm detail
+  # ────────────────────────────────────────────────────────────────────────────
+  ml_pipeline:
+    file: ml_service/train.py
+    function: train_menu()
+
+    data_window: >
+      60 days rolling, anchored to MAX(placed_at) in the orders table
+      (NOT NOW()) so the window is always relative to the latest data even
+      if the data is historical / frozen.
+
+    new_item_detection:
+      logic: |
+        life_df   = SELECT item_id, COUNT(DISTINCT order_id) AS lifetime_orders
+                    FROM menu_items LEFT JOIN order_items  GROUP BY item_id
+
+        in_window_ids     = item_ids that appear in the 60-day window query
+        low_order_ids     = item_ids with lifetime_orders < 50
+        all_menu_item_ids = all item_ids in menu_items
+        missing_ids       = all_menu_item_ids - in_window_ids  (zero 60-day orders)
+
+        new_items_set = (in_window_ids ∩ low_order_ids) ∪ missing_ids
+      note: >
+        missing_ids items are fetched separately and APPENDED to menu_df so
+        they still get a price recommendation even though they appear in no
+        recent order.  Their total_qty, order_count, total_revenue are set to 0.
+
+    pricing_algorithm:
+      overview: >
+        For each item, compute a margin gap versus a data-derived category target,
+        apply a demand dampen factor, respect category elasticity caps, apply
+        special rules (opportunistic, revenue protection, elasticity feedback),
+        then snap to a psychological price.
+
+      category_targets:
+        derivation: |
+          For each category group:
+            top_half = rows where order_count >= median order_count of that category
+            target   = top_half["margin_pct"].quantile(0.75)
+          This means the target is the 75th-pct margin of the better-selling items
+          in that category — i.e. "what do the good performers actually achieve?"
+
+      elasticity_caps_by_category:
+        Bread:    { up: 5%,  down: 5%  }
+        Drink:    { up: 8%,  down: 8%  }
+        Dessert:  { up: 10%, down: 10% }
+        Starter:  { up: 12%, down: 12% }
+        Main:     { up: 15%, down: 10% }
+        Rice:     { up: 15%, down: 10% }
+        Addon:    { up: 8%,  down: 8%  }
+        default:  { up: 10%, down: 10% }
+
+      normal_item_steps:
+        step_1_demand_dampen: |
+          demand_pct = percentile rank of this item within its category (0→1)
+          if demand_pct >= 0.75: dampen = 1.00   (top quartile — full algorithm)
+          if demand_pct >= 0.50: dampen = 0.75
+          if demand_pct >= 0.25: dampen = 0.50
+          else:                  dampen = 0.25   (bottom quartile — very gentle)
+          This prevents aggressive price changes on low-volume items with noisy data.
+
+        step_2_margin_gap_and_raw: |
+          margin_gap = actual_margin_pct - category_target_margin_pct
+          denom      = max(100 - target, 1)
+          raw_pct    = (margin_gap / denom) * 100
+          adjusted   = raw_pct * dampen
+          Sign convention:
+            adjusted > 0 → margin headroom → price can DECREASE to stimulate demand
+            adjusted < 0 → margin deficit  → price should INCREASE to recover margin
+
+        step_3_special_rules: |
+          # Opportunistic increase: if item is top-10% demand AND at/above target
+          if demand_pct >= 0.90 and margin_gap >= 0:
+              adjusted = max(adjusted, -(cap["up"] / 2))   # force at least half-cap increase
+
+          # Revenue protection: never decrease a top-25% revenue earner
+          if rev_pct >= 0.75 and adjusted > 0:
+              adjusted = 0
+
+          # Elasticity feedback from price_change_log (180-day window):
+          if actual_elasticity < -1.5:   # prior change caused big demand drop
+              adjusted *= 0.5             # be half as aggressive this time
+
+        step_4_clamp_and_round: |
+          adjusted = clamp(adjusted, -cap["up"], cap["down"])
+          if abs(adjusted) < 0.5:  new_price = current_price (maintain)
+          if adjusted > 0:          new_price = psychological_round(price * (1 - adjusted/100))
+          if adjusted < 0:          new_price = psychological_round(price * (1 + abs(adjusted)/100))
+          Also floor: new_price >= food_cost * 1.25  (minimum 25% margin protection)
+
+      new_item_pricing_special_branch:
+        trigger: "int(row['item_id']) in new_items_set"
+        differences_from_normal:
+          no_demand_dampening: >
+            dampen = 1.0 is irrelevant because there is no demand signal.
+            The algorithm skips directly to margin-only logic.
+          half_elasticity_cap: |
+            half_cap = { "up": cap["up"] / 2, "down": cap["down"] / 2 }
+            e.g. for a Main: normal cap is 15%/10%, new-item cap is 7.5%/5%
+          formula: |
+            raw_new = ((actual_margin - target) / max(100 - target, 1)) * 100
+            raw_new = clamp(raw_new, -half_cap["up"], +half_cap["down"])
+            if abs(raw_new) < 0.5:  direction = "maintain"
+            if raw_new > 0:          direction = "decrease"
+            if raw_new < 0:          direction = "increase"
+          reason_text_example: >
+            "New item — margin 82.1% above Main target (68.3%).
+             Gentle decrease (≤5% cap, margin-only)."
+          bcg_class_forced: '"New"'
+          is_new_item_flag: 'True'
+          continue_statement: >
+            The new-item logic appends to price_recs and calls `continue`,
+            skipping ALL normal-item steps including BCG class assignment.
+
+    output_json_per_item:
+      fields:
+        item_id:                    "int"
+        name:                       "str"
+        category:                   "str"
+        bcg_class:                  "'Star'|'Puzzle'|'Plowhorse'|'Dog'|'New'"
+        current_price:              "float (₹)"
+        suggested_price:            "float (₹, psychological-rounded)"
+        price_change_pct:           "float  e.g. -3.2 or +7.5"
+        direction:                  "'increase'|'decrease'|'maintain'"
+        reason:                     "str  plain-English explanation"
+        actual_margin_pct:          "float"
+        category_target_margin_pct: "float"
+        margin_gap_pp:              "float  (actual - target, in percentage points)"
+        demand_percentile:          "float 0→1   (0.0 for new items)"
+        demand_dampen_factor:       "float 0.25→1.00  (0.0 for new items)"
+        elasticity_cap_up:          "float  (half for new items)"
+        elasticity_cap_down:        "float  (half for new items)"
+        window_days:                "60"
+        is_new_item:                "bool"
+
+    saved_to_json: ml_service/models/ (in the menu_optimization joblib artifact)
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # BACKEND API
+  # ────────────────────────────────────────────────────────────────────────────
+  backend_api:
+    controller_file: backend/src/controllers/revenueController.js
+    function: exports.priceRecommendations
+    route: GET /api/revenue/price-recommendations
+    auth_required: true
+
+    primary_source: >
+      Calls ML service GET /predict/menu-optimization.
+      If the ML service is up and returns price_recommendations with length > 0,
+      uses that data directly (maps and forwards it).
+
+    fallback_source: >
+      If the ML service is down or returns empty, runs the same algorithm
+      inline against PostgreSQL using the same ELASTICITY_CAPS, psychRound,
+      and category target logic — but WITHOUT new item detection.
+      Fallback always returns is_new_item: false.
+
+    is_new_item_added_to_both_paths: true
+
+    response_shape: |
+      {
+        recommendations: [
+          {
+            item_id, item_name, category, bcg_class,
+            current_price, suggested_price, price_change_pct,
+            direction, reason,
+            actual_margin_pct, category_target_margin_pct, margin_gap_pp,
+            demand_percentile, demand_dampen_factor,
+            elasticity_cap_up, elasticity_cap_down,
+            window_days,
+            is_new_item          ← KEY NEW FIELD (bool)
+          }
+        ],
+        category_targets: { "Main": 68.3, "Drink": 72.1, ... },
+        combo_cascade:    [...],
+        generated_at:     "ISO timestamp or null",
+        window_days:      60,
+        source:           "ml_dynamic" | "fallback_dynamic"
+      }
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # FRONTEND
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend:
+    file: frontend/Frontend_mined/src/pages/Revenue.jsx
+    tab: "'price'  — activated when tab === 'price'"
+
+    table_columns: [Item, Variant, Class, Current ₹, Suggested ₹, Change, Reason]
+
+    new_item_badge:
+      condition: "row.is_new_item === true"
+      render: |
+        <span className="text-[9px] font-bold bg-blue-100 text-blue-600
+                         px-1 py-0.5 rounded uppercase tracking-wide">
+          🆕 new
+        </span>
+      placement: >
+        Inline after the item name, inside a flex container with gap-1.5.
+        Only the Item cell is changed — all other cells (Variant, Class, etc.)
+        are unmodified.
+
+    bcg_class_badge:
+      colours_defined_in_component:
+        Star:      "#f59e0b"  (amber)
+        Puzzle:    "#8b5cf6"  (purple)
+        Plowhorse: "#3b82f6"  (blue)
+        Dog:       "#6b7280"  (gray)
+        New:       (falls through to undefined → no colour, plain border)
+      style: "pill badge with borderColor + background as classColor + opacity suffix"
+
+    direction_arrow:
+      component: ArrowUpRight (lucide-react)
+      up:   "text-emerald-600, no rotation"
+      down: "text-red-500, rotate(90deg) via inline style"
+
+    empty_state: >
+      If priceRecs.length === 0:
+      "No price suggestions — all items are already well-optimised."
+
+    data_fetch_location: >
+      Fetched via apiFetch('/revenue/price-recommendations') inside a useEffect.
+      Stored in local state as priceRecs.  The fetch fires on component mount
+      and on manual "Refresh" button click if one exists.
+
+################################################################################
+# HOW TO RETRAIN AND RESTART
+################################################################################
+
+retraining_workflow:
+  step_1_retrain: |
+    cd /path/to/project
+    source .venv/bin/activate
+    cd ml_service
+    python train.py
+    # Expect output like:
+    # → 31 price recs (↑15 increase, ↓8 decrease, =8 maintain, 🆕1 new-item),
+    #   50 upsell pairs, 16 auto-pairs + 0 auto-triplets written to DB, ...
+
+  step_2_restart_ml_service: |
+    lsof -ti:8000 | xargs kill -9 2>/dev/null
+    # from project root with venv active:
+    cd ml_service && python main.py &
+    # Verify: curl http://localhost:8000/health
+    # Expected: {"status":"ok","models":{...all true...}}
+
+  step_3_restart_backend: |
+    lsof -ti:3000 | xargs kill -9 2>/dev/null
+    cd backend && npm run dev &
+    # Verify: curl -s http://localhost:3000/api/health
+
+  step_4_verify_combos: |
+    TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"admin@demo.com","password":"admin123"}' \
+      | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+    curl -s -H "Authorization: Bearer $TOKEN" \
+      "http://localhost:3000/api/combos/suggestions?page=1&limit=5" \
+      | python3 -m json.tool | head -30
+    # Expect: total ≥ 16, combos array with 5 items, each with lift, saving, items[]
+
+  step_5_verify_price_recs: |
+    curl -s -H "Authorization: Bearer $TOKEN" \
+      "http://localhost:3000/api/revenue/price-recommendations" \
+      | python3 -c "
+    import sys, json
+    d = json.load(sys.stdin)
+    recs  = d.get('recommendations', [])
+    new_r = [r for r in recs if r.get('is_new_item')]
+    print(f'Total recs: {len(recs)},  New-item recs: {len(new_r)}')
+    print(f'Source: {d.get(\"source\")}')
+    for r in new_r:
+        print(f'  🆕 {r[\"item_name\"]}  {r[\"direction\"]}  {r[\"reason\"][:60]}')
+    "
+
+################################################################################
+# FILE MAP — everything touched by these two features
+################################################################################
+
+file_map:
+  new_files:
+    - path: backend/migrations/002_combo_intelligence.sql
+      what: Adds combo_size, combo_score, lift columns + index to menu_combos
+    - path: backend/migrations/003_price_optimization.sql
+      what: Creates price_change_log table; adds first_ordered_at, total_orders_ever to menu_items
+    - path: backend/migrations/004_new_item_support.sql
+      what: Creates new_items_view and item_pricing_coverage view
+    - path: backend/migrations/README.md
+      what: Instructions for teammates to apply migrations on a fresh DB
+    - path: backend/src/controllers/combosController.js
+      what: getSuggestions() — the paginated combo API endpoint handler
+    - path: backend/src/routes/combos.js
+      what: Express router mounting GET /suggestions with auth middleware
+    - path: frontend/Frontend_mined/src/components/ComboSuggestions.jsx
+      what: Orange combo card strip component with pagination
+
+  modified_files:
+    - path: backend/src/app.js
+      change: Added combosRoutes import + app.use('/api/combos', combosRoutes)
+    - path: backend/src/controllers/revenueController.js
+      change: Added is_new_item field in both ML-path and fallback-path response maps
+    - path: ml_service/train.py
+      changes:
+        - New item detection block (new_items_set computation + missing_ids fetch)
+        - New item pricing branch (margin-only, half cap, is_new_item=True in rec dict)
+        - Triplet combo mining block (scores pairs+triplets, writes top-40 to DB)
+        - Updated print summary line (shows 🆕 count, auto-pairs, auto-triplets)
+    - path: frontend/Frontend_mined/src/pages/Orders.jsx
+      changes:
+        - Import ComboSuggestions
+        - handleAddCombo() handler added
+        - <ComboSuggestions onAddCombo={handleAddCombo} /> placed above order table
+    - path: frontend/Frontend_mined/src/pages/Revenue.jsx
+      change: >
+        🆕 badge rendered inline after item_name when row.is_new_item is true
+        (Price Recommendations tab only)
+
+################################################################################
+# KNOWN LIMITATIONS / THINGS TO WATCH
+################################################################################
+
+known_issues:
+  - id: triplets_currently_zero
+    description: >
+      The triplet count shown in the retrain summary is 0 right now.
+      FP-Growth with min_support=0.01 on the current dataset produces no
+      3-item frequent itemsets above threshold.  To get triplets, either
+      lower MIN_SUPPORT (e.g. to 0.005) in train_menu() or grow the dataset.
+      The DB schema and write logic already support combo_size=3 fully.
+
+  - id: combo_suggestions_empty_before_train
+    description: >
+      The /api/combos/suggestions endpoint returns an empty array if train.py
+      has never been run on the current DB (no auto_mined rows exist).
+      ComboSuggestions.jsx renders nothing in that case (returns null) which
+      is correct — no error is thrown.
+
+  - id: new_item_badge_requires_ml_service
+    description: >
+      The fallback path in revenueController.js always returns is_new_item=false
+      because it doesn't have the new_items_set logic.  The 🆕 badge only
+      appears when the ML service is running and returns data from the trained
+      model, which includes is_new_item=true on qualifying items.
+
+  - id: handleAddCombo_skips_inventory_blocked_items
+    description: >
+      If a combo contains an item that is out of stock (can_make=false in
+      menuOptions), that item is silently skipped — the combo is still
+      "added" but with fewer items than expected.  Consider adding a toast
+      warning to the user in this case.

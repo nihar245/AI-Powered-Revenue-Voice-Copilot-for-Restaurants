@@ -20,6 +20,7 @@ exports.getItems = async (_req, res, next) => {
             'variant_name', mv.variant_name,
             'selling_price', mv.selling_price,
             'food_cost', mv.food_cost,
+            'margin_pct', ROUND((mv.selling_price - mv.food_cost) / NULLIF(mv.selling_price, 0) * 100, 2),
             'gst_pct', mv.gst_pct,
             'is_available', mv.is_available
           ) ORDER BY mv.selling_price
@@ -42,7 +43,9 @@ exports.getVariants = async (req, res, next) => {
   try {
     const { item_id } = req.params;
     const { rows } = await db.query(
-      `SELECT variant_id, variant_name, selling_price, food_cost, gst_pct, is_available
+      `SELECT variant_id, variant_name, selling_price, food_cost,
+              ROUND((selling_price - food_cost) / NULLIF(selling_price, 0) * 100, 2) AS margin_pct,
+              gst_pct, is_available
        FROM menu_variants WHERE item_id = $1 ORDER BY selling_price`,
       [item_id]
     );

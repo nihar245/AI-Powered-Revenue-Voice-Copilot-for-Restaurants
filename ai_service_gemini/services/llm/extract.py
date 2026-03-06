@@ -74,8 +74,20 @@ Rules:
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _is_garbled(text: str) -> bool:
-    """Return True when the transcript is completely empty or unparseable."""
-    return not text.strip()
+    """Return True when the transcript is empty or written in non-Latin (native) script.
+    When the transcript is in Gujarati / Hindi / Tamil / Telugu script the LLM
+    extractor cannot do reliable menu matching, so callers should fall back to
+    using the AI's English response_text as the primary parse source instead.
+    """
+    if not text.strip():
+        return True
+    # If more than 30 % of alphabetic characters are non-ASCII the text contains
+    # a substantial amount of native script (Devanagari, Gujarati, Tamil, …).
+    alpha = [c for c in text if c.isalpha()]
+    if not alpha:
+        return True
+    non_latin_ratio = sum(1 for c in alpha if ord(c) > 127) / len(alpha)
+    return non_latin_ratio > 0.30
 
 
 def _fuzzy_match_item(name: str, menu_items: list[dict]) -> dict | None:

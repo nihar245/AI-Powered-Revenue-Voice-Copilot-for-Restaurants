@@ -21,7 +21,7 @@ const methodLabel = {
   debit_card: 'Debit Card',
   wallet: 'Wallet',
 }
-const classColor = { Star: '#10b981', Puzzle: '#8b5cf6', Plowhorse: '#e11d48', Dog: '#f97316' }
+const classColor = { Star: '#10b981', Puzzle: '#8b5cf6', Plowhorse: '#e11d48', Dog: '#f97316', New: '#6b7280' }
 
 const CurrencyTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
@@ -59,7 +59,7 @@ export default function Revenue() {
       apiFetch(`/revenue/upsell-stats?period=${period}`).catch(() => null),
     ]).then(([cm, pr, a, an, df, up, us]) => {
       setContributionMargin(Array.isArray(cm) ? cm : [])
-      setPriceRecs(Array.isArray(pr) ? pr : [])
+      setPriceRecs(pr?.recommendations ?? (Array.isArray(pr) ? pr : []))
       setAov(a || { byChannel: [], byDayOfWeek: [], byHour: [], byPaymentMethod: [], byWeekType: [] })
       setAnomalies(an || { data: [] })
       setDemandForecast(df || { forecasts: [] })
@@ -222,12 +222,19 @@ export default function Revenue() {
                 const pct = ((diff / row.current_price) * 100).toFixed(0)
                 return (
                   <tr key={i} className="hover:bg-surface-50 transition-colors">
-                    <td className="py-2.5 pr-4 text-surface-900 font-medium text-xs">{row.item_name}</td>
+                    <td className="py-2.5 pr-4 text-surface-900 font-medium text-xs">
+                      <span className="flex items-center gap-1.5">
+                        {row.item_name}
+                        {row.is_new_item && (
+                          <span className="text-[9px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded uppercase tracking-wide">🆕 new</span>
+                        )}
+                      </span>
+                    </td>
                     <td className="py-2.5 pr-4 text-surface-500 text-xs">{row.variant_name}</td>
                     <td className="py-2.5 pr-4">
                       <span className="text-xs px-2 py-0.5 rounded-full border font-semibold"
-                        style={{ color: classColor[row.classification], borderColor: classColor[row.classification] + '55', background: classColor[row.classification] + '15' }}>
-                        {row.classification}
+                        style={{ color: classColor[row.bcg_class || row.classification], borderColor: classColor[row.bcg_class || row.classification] + '55', background: classColor[row.bcg_class || row.classification] + '15' }}>
+                        {row.bcg_class || row.classification}
                       </span>
                     </td>
                     <td className="py-2.5 pr-4 text-surface-700 text-xs">₹{row.current_price}</td>

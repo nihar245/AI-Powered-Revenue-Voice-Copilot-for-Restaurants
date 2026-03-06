@@ -239,177 +239,203 @@ async def voice_chat(
     live_ms = round((time.perf_counter() - t0) * 1000)
 
     transcript       = turn["transcript"]
+    detected_lang    = turn["language"]
     transcript_display = turn.get("transcript_display") or turn["transcript"]
+    # If [TRANSCRIPT:] tag was missing and raw transcript is native script,
+    # show a generic label so the UI doesn't render Devanagari/Gujarati characters.
+    if transcript_display == transcript and _is_native_script(transcript):
+        _LANG_LABELS = {"hi": "Hindi", "gu": "Gujarati", "ta": "Tamil", "te": "Telugu", "pa": "Punjabi"}
+        transcript_display = "[voice input — " + _LANG_LABELS.get(detected_lang or language, "non-Latin script") + "]"
     response_text    = turn["response_text"]
     response_display = turn.get("response_display") or response_text
-    cmd_hint         = turn.get("cmd_hint", "")
-    detected_lang    = turn["language"]
+    cmd_hints_list   = turn.get("cmd_hints", [])
+    if not cmd_hints_list and turn.get("cmd_hint"):   # backward compat
+        cmd_hints_list = [turn["cmd_hint"]]
     audio_b64        = turn["audio_b64"]
 
     # ── Step 2: Extract structured update ─────────────────────────────────────
-    # Primary: parse Gemini's own [CMD:] tag (English, structured, no extra LLM call).
-    # Fallback: send transcript to Gemini text model if CMD tag is absent or malformed.
+    # Primary   : parse Gemini's own [CMD:] tags (one tag per action, fastest).
+    # Secondary : parse Aria's English response_text per-sentence (language-agnostic).
+    # Tertiary  : send text to Gemini text model as last resort.
     t1 = time.perf_counter()
-    cmd_parsed  = _apply_cmd_hint(cmd_hint, menu) if cmd_hint else None
-    update_data = (
-        cmd_parsed
-        if (cmd_parsed and cmd_parsed["intent"] != "unknown")
-        else await extract_cart_update(transcript, menu, response_text=response_text)
-    )
+    actions_data = _apply_cmd_hints(cmd_hints_list, menu) if cmd_hints_list else None
+
+    if not actions_data:
+        rt_parsed = _parse_from_response_text(response_text, menu) if response_text else None
+        if rt_parsed:
+            actions_data = rt_parsed
+        else:
+            single = await extract_cart_update(transcript, menu, response_text=response_text)
+            actions_data = {"actions": [single]}
     extract_ms = round((time.perf_counter() - t1) * 1000)
 
-    intent_str            = update_data.get("intent", "unknown")
-    items_to_act          = update_data.get("items", [])
-    clarification_needed  = update_data.get("clarification_needed", False)
-    clarification_question = update_data.get("clarification_question")
+    all_actions = actions_data.get("actions", [])
+    primary_action         = all_actions[0] if all_actions else {}
+    intent_str             = primary_action.get("intent", "unknown")
+    clarification_needed   = primary_action.get("clarification_needed", False)
+    clarification_question = primary_action.get("clarification_question")
 
     try:
         intent = Intent(intent_str)
     except ValueError:
         intent = Intent.UNKNOWN
 
-    # ── Step 3: Apply cart mutations ──────────────────────────────────────────
+    # ── Step 3: Apply cart mutations (loop over all actions) ──────────────────
     cart_events:  list[str]      = []
     order_number: str | None     = None
     new_clarification: str | None = None
     new_pending_upsell: str | None = pending_upsell  # carry forward unless resolved
 
-    if intent == Intent.ADD_ITEM:
-        for item_data in items_to_act:
-            pid      = str(item_data.get("product_id", ""))
-            qty      = int(item_data.get("qty", 1))
-            name     = item_data.get("name", "")
-            mods     = item_data.get("modifiers") or {}
-            ambig    = item_data.get("ambiguous", False)
+    for action in all_actions:
+        a_intent_str = action.get("intent", "unknown")
+        items_to_act = action.get("items", [])
+        a_clarif_q   = action.get("clarification_question")
+        try:
+            a_intent = Intent(a_intent_str)
+        except ValueError:
+            a_intent = Intent.UNKNOWN
 
-            if ambig or not pid:
-                # Don't add to cart yet; ask for clarification
-                new_clarification = clarification_question or f"Which {name} did you mean?"
-                session["pending_ambiguous_item"] = item_data
-                cart_events.append(f"? Clarifying: {name}")
-                continue
+        if a_intent == Intent.ADD_ITEM:
+            for item_data in items_to_act:
+                pid      = str(item_data.get("product_id", ""))
+                qty      = int(item_data.get("qty", 1))
+                name     = item_data.get("name", "")
+                mods     = item_data.get("modifiers") or {}
+                ambig    = item_data.get("ambiguous", False)
 
-            existing = next((c for c in cart if c["product_id"] == pid), None)
-            if existing:
-                existing["quantity"] += qty
-                # Merge modifiers if present
-                if mods:
-                    existing.setdefault("modifiers", {})
-                    existing["modifiers"].update({k: v for k, v in mods.items() if v})
-                cart_events.append(f"+{qty}× {name}")
-            else:
-                mi = next((m for m in menu if str(m["product_id"]) == pid), None)
-                if mi:
-                    vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
-                    cart.append({
-                        "product_id":   pid,
-                        "name":         mi["name"],
-                        "quantity":     qty,
-                        "unit_price":   uprice,
-                        "tax_rate":     tax_r,
-                        "variant_id":   vid,
-                        "variant_name": vname,
-                        "notes":        mods.get("notes") if mods else None,
-                        "modifiers":    {k: v for k, v in mods.items() if v and k != "notes"} or None if mods else None,
-                    })
-                    label = f"+{qty}× {mi['name']}"
-                    if vname:
-                        label += f" ({vname})"
-                    cart_events.append(label)
+                if ambig or not pid:
+                    new_clarification = a_clarif_q or f"Which {name} did you mean?"
+                    session["pending_ambiguous_item"] = item_data
+                    cart_events.append(f"? Clarifying: {name}")
+                    continue
 
-        # Trigger upsell suggestion after adding items
-        upsell_text = get_upsell_suggestion(cart, upsells_shown + combos_shown, menu)
-        if upsell_text:
-            new_pending_upsell = upsell_text
+                existing = next((c for c in cart if c["product_id"] == pid), None)
+                if existing:
+                    existing["quantity"] += qty
+                    if mods:
+                        existing.setdefault("modifiers", {})
+                        existing["modifiers"].update({k: v for k, v in mods.items() if v})
+                    cart_events.append(f"+{qty}× {name}")
+                else:
+                    mi = next((m for m in menu if str(m["product_id"]) == pid), None)
+                    if mi:
+                        vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
+                        cart.append({
+                            "product_id":   pid,
+                            "name":         mi["name"],
+                            "quantity":     qty,
+                            "unit_price":   uprice,
+                            "tax_rate":     tax_r,
+                            "variant_id":   vid,
+                            "variant_name": vname,
+                            "notes":        mods.get("notes") if mods else None,
+                            "modifiers":    {k: v for k, v in mods.items() if v and k != "notes"} or None if mods else None,
+                        })
+                        label = f"+{qty}× {mi['name']}"
+                        if vname:
+                            label += f" ({vname})"
+                        cart_events.append(label)
 
-    elif intent == Intent.MODIFY_ITEM:
-        for item_data in items_to_act:
-            pid  = str(item_data.get("product_id", ""))
-            name = item_data.get("name", "")
-            mods = item_data.get("modifiers") or {}
-            target = next((c for c in cart if c["product_id"] == pid), None)
-            if target and mods:
-                target.setdefault("modifiers", {})
-                target["modifiers"].update({k: v for k, v in mods.items() if v})
-                target["notes"] = mods.get("notes", target.get("notes"))
-                mod_desc = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
-                cart_events.append(f"✏ {name} modified ({mod_desc})")
-            else:
-                cart_events.append(f"? {name} not in cart to modify")
+            # Trigger upsell suggestion after adding items
+            upsell_text = get_upsell_suggestion(cart, upsells_shown + combos_shown, menu)
+            if upsell_text:
+                new_pending_upsell = upsell_text
 
-    elif intent == Intent.REMOVE_ITEM:
-        for item_data in items_to_act:
-            pid  = str(item_data.get("product_id", ""))
-            name = item_data.get("name", "")
-            before = len(cart)
-            cart = [c for c in cart if c["product_id"] != pid]
-            if len(cart) < before:
-                cart_events.append(f"−{name} removed")
+        elif a_intent == Intent.MODIFY_ITEM:
+            for item_data in items_to_act:
+                pid  = str(item_data.get("product_id", ""))
+                name = item_data.get("name", "")
+                mods = item_data.get("modifiers") or {}
+                target = next((c for c in cart if c["product_id"] == pid), None)
+                if target and mods:
+                    target.setdefault("modifiers", {})
+                    target["modifiers"].update({k: v for k, v in mods.items() if v})
+                    target["notes"] = mods.get("notes", target.get("notes"))
+                    variant_hint = mods.get("size") or mods.get("variant") or mods.get("portion")
+                    if variant_hint:
+                        mi = next((m for m in menu if str(m["product_id"]) == pid), None)
+                        if mi:
+                            vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
+                            target["variant_id"]   = vid
+                            target["variant_name"] = vname
+                            target["unit_price"]   = uprice
+                            target["tax_rate"]     = tax_r
+                    mod_desc = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
+                    cart_events.append(f"✏ {name} modified ({mod_desc})")
+                else:
+                    cart_events.append(f"? {name} not in cart to modify")
 
-    elif intent == Intent.UPSELL_RESPONSE:
-        # Customer said "yes" to a pending upsell
-        if pending_upsell:
-            # Parse item name out of suggestion text
-            suggested_name = _extract_item_name_from_upsell(pending_upsell, menu)
-            if suggested_name:
-                mi = next(
-                    (m for m in menu if m["name"].lower() == suggested_name.lower()),
-                    None,
-                )
-                if mi and not any(c["product_id"] == str(mi["product_id"]) for c in cart):
-                    vid, vname, uprice, tax_r = _resolve_variant(mi, None)
-                    cart.append({
-                        "product_id":   str(mi["product_id"]),
-                        "name":         mi["name"],
-                        "quantity":     1,
-                        "unit_price":   uprice,
-                        "tax_rate":     tax_r,
-                        "variant_id":   vid,
-                        "variant_name": vname,
-                        "notes":        None,
-                        "modifiers":    None,
-                    })
-                    cart_events.append(f"+1× {mi['name']} (upsell accepted)")
-            upsells_shown.append(pending_upsell)
-            new_pending_upsell = None
+        elif a_intent == Intent.REMOVE_ITEM:
+            for item_data in items_to_act:
+                pid  = str(item_data.get("product_id", ""))
+                name = item_data.get("name", "")
+                before = len(cart)
+                cart = [c for c in cart if c["product_id"] != pid]
+                if len(cart) < before:
+                    cart_events.append(f"−{name} removed")
 
-    elif intent == Intent.CLARIFY:
-        # Customer is answering a previous clarification question
-        new_clarification = None
-        session["pending_ambiguous_item"] = None
+        elif a_intent == Intent.UPSELL_RESPONSE:
+            if pending_upsell:
+                suggested_name = _extract_item_name_from_upsell(pending_upsell, menu)
+                if suggested_name:
+                    mi = next(
+                        (m for m in menu if m["name"].lower() == suggested_name.lower()),
+                        None,
+                    )
+                    if mi and not any(c["product_id"] == str(mi["product_id"]) for c in cart):
+                        vid, vname, uprice, tax_r = _resolve_variant(mi, None)
+                        cart.append({
+                            "product_id":   str(mi["product_id"]),
+                            "name":         mi["name"],
+                            "quantity":     1,
+                            "unit_price":   uprice,
+                            "tax_rate":     tax_r,
+                            "variant_id":   vid,
+                            "variant_name": vname,
+                            "notes":        None,
+                            "modifiers":    None,
+                        })
+                        cart_events.append(f"+1× {mi['name']} (upsell accepted)")
+                upsells_shown.append(pending_upsell)
+                new_pending_upsell = None
 
-    elif intent == Intent.CANCEL_ORDER:
-        cart = []
-        new_pending_upsell = None
-        new_clarification  = None
-        cart_events.append("Order cancelled")
+        elif a_intent == Intent.CLARIFY:
+            new_clarification = None
+            session["pending_ambiguous_item"] = None
 
-    elif intent == Intent.CONFIRM_ORDER:
-        if cart:
-            subtotal, tax_total, grand_total = get_cart_total(cart)
-            try:
-                order_number = await _write_order_to_db(
-                    session_data=session,
-                    table_id=table_id,
-                    cart=cart,
-                    subtotal=subtotal,
-                    tax_total=tax_total,
-                    grand_total=grand_total,
-                    cart_events=cart_events,
-                )
-            except Exception as exc:
-                logger.error("Order write failed: %s", exc)
-                order_number = f"VO-{uuid.uuid4().hex[:6].upper()}"
-                cart_events.append(f"✅ Order #{order_number} confirmed — ₹{grand_total:.0f} (DB error)")
+        elif a_intent == Intent.CANCEL_ORDER:
             cart = []
             new_pending_upsell = None
             new_clarification  = None
+            cart_events.append("Order cancelled")
 
-    # Update clarification state: set new one if needed, or clear if answered
-    if intent not in (Intent.ADD_ITEM, Intent.MODIFY_ITEM):
-        # Other intents count as implicitly resolving pending clarification
-        if intent not in (Intent.CLARIFY, Intent.UNKNOWN, Intent.GREETING):
-            new_clarification = None
+        elif a_intent == Intent.CONFIRM_ORDER:
+            if cart:
+                subtotal, tax_total, grand_total = get_cart_total(cart)
+                try:
+                    order_number = await _write_order_to_db(
+                        session_data=session,
+                        table_id=table_id,
+                        cart=cart,
+                        subtotal=subtotal,
+                        tax_total=tax_total,
+                        grand_total=grand_total,
+                        cart_events=cart_events,
+                    )
+                except Exception as exc:
+                    logger.error("Order write failed: %s", exc)
+                    order_number = f"VO-{uuid.uuid4().hex[:6].upper()}"
+                    cart_events.append(f"✅ Order #{order_number} confirmed — ₹{grand_total:.0f} (DB error)")
+                cart = []
+                new_pending_upsell = None
+                new_clarification  = None
+
+    # Update clarification state: clear it unless ALL actions were non-clearing types
+    _all_intents = {a.get("intent", "unknown") for a in all_actions}
+    _non_mod = _all_intents - {"add_item", "modify_item"}
+    if _non_mod and not _non_mod.issubset({"clarify", "unknown", "greeting"}):
+        new_clarification = None
+
 
     # ── Step 4: Persist session ───────────────────────────────────────────────
     if new_pending_upsell and new_pending_upsell not in upsells_shown:
@@ -475,6 +501,16 @@ async def voice_chat(
     }
 
 
+def _is_native_script(text: str) -> bool:
+    """Return True if the text is substantially in non-Latin (native) script."""
+    if not text or not text.strip():
+        return False
+    alpha = [c for c in text if c.isalpha()]
+    if not alpha:
+        return False
+    return sum(1 for c in alpha if ord(c) > 127) / len(alpha) > 0.30
+
+
 def _extract_item_name_from_upsell(suggestion_text: str, menu: list[dict]) -> str | None:
     """
     Pull the item name out of a suggestion string like
@@ -487,6 +523,20 @@ def _extract_item_name_from_upsell(suggestion_text: str, menu: list[dict]) -> st
             # Make sure it's a suggestion target (appears before "pairs" or right after "add")
             return m["name"]
     return None
+
+
+def _apply_cmd_hints(cmd_hints: list[str], menu: list[dict]) -> dict | None:
+    """
+    Process a list of [CMD:] hints and return {"actions": [...]}.
+    Each hint is parsed independently, allowing compound turns like
+    "modify_item | Paneer Tikka x1" + "remove_item | Dal Shorba x1".
+    """
+    actions = []
+    for hint in cmd_hints:
+        result = _apply_cmd_hint(hint, menu)
+        if result and result["intent"] != "unknown":
+            actions.append(result)
+    return {"actions": actions} if actions else None
 
 
 def _apply_cmd_hint(cmd_hint: str, menu: list[dict]) -> dict | None:
@@ -552,6 +602,123 @@ def _apply_cmd_hint(cmd_hint: str, menu: list[dict]) -> dict | None:
         }
     except Exception:
         return None
+
+
+def _parse_from_response_text(response_text: str, menu: list[dict]) -> dict | None:
+    """
+    Secondary fallback extractor — parses Aria's own English confirmation text.
+
+    Handles both single-action and compound turns (modify + remove in one response).
+    Works for all customer languages because Aria always responds in English.
+
+    Returns {"actions": [{"intent": ..., "items": [...]}, ...]} or None.
+    """
+    if not response_text or not response_text.strip():
+        return None
+
+    text_lower = response_text.lower()
+
+    # Split into sentences first, then handle compound connectors within a sentence
+    # e.g. "Updated Paneer Tikka to full and removed Dal Shorba." → two sub-clauses
+    _ACTION_SPLITS = [
+        " and removed ", " and added ", " and cancelled ",
+        " and modified ", " and changed ", " and updated ",
+    ]
+    raw_sentences = re.split(r'[.!?]', text_lower)
+    sentences: list[str] = []
+    for sent in raw_sentences:
+        sent = sent.strip()
+        if not sent:
+            continue
+        split_done = False
+        for pat in _ACTION_SPLITS:
+            if pat in sent:
+                left, right = sent.split(pat, 1)
+                sentences.append(left.strip())
+                # Reconstruct the right part with the verb from the split pattern
+                sentences.append(pat.strip() + " " + right.strip())
+                split_done = True
+                break
+        if not split_done:
+            sentences.append(sent)
+
+    _INTENT_RULES = [
+        ("add_item",      ["added ", "adding ", "i've added", "i have added"]),
+        ("remove_item",   ["removed ", "removing ", "taken off", "i've removed"]),
+        ("modify_item",   ["updated ", "changed ", "modified ", "switched "]),
+        ("confirm_order", ["order has been placed", "order is confirmed", "placed your order", "order placed"]),
+        ("cancel_order",  ["order has been cancelled", "order cancelled", "cancelled your order"]),
+    ]
+
+    def _detect_intent(s: str) -> str | None:
+        for intent, keys in _INTENT_RULES:
+            for k in keys:
+                if k in s:
+                    return intent
+        return None
+
+    _VARIANT_WORDS = {"half", "full", "small", "medium", "large", "regular"}
+    _WORD_TO_QTY   = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                      "a": 1, "an": 1}
+    _STRIP = ",.!?() "
+
+    actions: list[dict] = []
+    for sent in sentences:
+        s_intent = _detect_intent(sent)
+        if not s_intent:
+            continue
+
+        if s_intent in ("confirm_order", "cancel_order"):
+            actions.append({
+                "intent": s_intent, "items": [],
+                "clarification_needed": False, "clarification_question": None,
+            })
+            continue
+
+        items: list[dict] = []
+        for mi in menu:
+            name_lower = mi["name"].lower()
+            if name_lower not in sent:
+                continue
+
+            pos = sent.find(name_lower)
+            end = pos + len(name_lower)
+
+            before_tokens = [t.strip(_STRIP) for t in sent[:pos].split()[-5:]]
+            after_tokens  = [t.strip(_STRIP) for t in sent[end:].split()[:5]]
+
+            modifier: dict = {}
+            qty = 1
+
+            for tok in reversed(before_tokens):
+                if tok in _VARIANT_WORDS and "size" not in modifier:
+                    modifier["size"] = tok
+                elif tok.isdigit():
+                    qty = int(tok)
+                elif tok in _WORD_TO_QTY:
+                    qty = _WORD_TO_QTY[tok]
+
+            if "size" not in modifier:
+                for tok in after_tokens:
+                    if tok in _VARIANT_WORDS:
+                        modifier["size"] = tok
+                        break
+
+            items.append({
+                "product_id": str(mi["product_id"]),
+                "name":       mi["name"],
+                "qty":        qty,
+                "modifiers":  modifier or None,
+                "ambiguous":  False,
+            })
+
+        if items:
+            actions.append({
+                "intent": s_intent, "items": items,
+                "clarification_needed": False, "clarification_question": None,
+            })
+
+    return {"actions": actions} if actions else None
 
 
 # ─── /test/add-item (quick-add via upsell chip) ──────────────────────────────

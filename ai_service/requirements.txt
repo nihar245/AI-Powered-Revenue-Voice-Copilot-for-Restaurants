@@ -1,0 +1,38 @@
+# ─── PyTorch CPU-only (pulls from PyTorch's own wheel index) ─────────────────
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu
+torchaudio==2.5.1+cpu
+
+# ─── Web Framework ───────────────────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.18
+
+# ─── Validation / Settings ───────────────────────────────────────────────────
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# ─── Database ────────────────────────────────────────────────────────────────
+asyncpg==0.30.0
+
+# ─── STT — Whisper (local, prebuilt wheels — no compilation needed) ────────────
+faster-whisper==1.1.1
+
+# ─── Embeddings (NLU semantic fallback + menu matching) ──────────────────────
+sentence-transformers==3.3.1
+
+# ─── TTS (requires internet at runtime for audio synthesis) ──────────────────
+gTTS==2.5.4
+
+# ─── Language Detection ──────────────────────────────────────────────────────
+# langdetect removed — Whisper's built-in detection is used directly (faster)
+
+# ─── Indic Script Transliteration ────────────────────────────────────────────
+indic-transliteration==2.3.69
+
+# ─── HTTP client (Ollama) ────────────────────────────────────────────────────
+httpx==0.28.1
+
+# ─── Utils ───────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+numpy>=1.24.0,<2.0

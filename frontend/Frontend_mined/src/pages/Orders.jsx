@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw } from 'lucide-react'
 import { usePOS } from '../context/POSContext'
 import { apiFetch } from '../config'
+import ComboSuggestions from '../components/ComboSuggestions'
 
 const statusClass = {
   Received: 'badge-status-received',
@@ -133,6 +134,14 @@ export default function Orders() {
       return [...prev, { ...opt, qty, is_upsell: isUpsell, trigger_item_name: triggerName }];
     });
     if (!isUpsell) setSelectedQuantity(1);
+  };
+
+  const handleAddCombo = (combo) => {
+    for (const item of (combo.items || [])) {
+      const opt = menuOptions.find(o => o.item_id === item.item_id);
+      if (opt) handleAddToCart(opt, item.qty || 1, false, null);
+    }
+    setIsModalOpen(true);
   };
 
   // Compute live upsell suggestions: items frequently paired with anything in cart
@@ -366,8 +375,9 @@ export default function Orders() {
         </div>
       </div>
 
+      <ComboSuggestions onAddCombo={handleAddCombo} />
       <div className="flex gap-6 items-start flex-1 min-h-0">
-        {/* ── Table ── */}
+        {/* ── Table ── */
         <div className="flex-1 min-w-0 card flex flex-col overflow-hidden bg-white h-full">
           <div className="overflow-y-auto flex-1 h-full custom-scrollbar">
             <table className="w-full text-sm">
@@ -437,7 +447,7 @@ export default function Orders() {
           </div>
         </div>
 
-        {/* ── Side Panel ── */}
+        /* ── Side Panel ── */}
         <div className="w-80 shrink-0 h-full overflow-y-auto hidden lg:block pb-10 custom-scrollbar">
           {selectedOrder ? (
             <div className="space-y-4 animate-slide-in-right">

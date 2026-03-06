@@ -98,14 +98,16 @@ def build_live_system_instruction(
         tags     = item.get("tags") or []
         tag_str  = f" ★{','.join(tags)}" if tags else ""
 
+        tax_rate = float(item.get("tax", 5.0))
+        tax_mult = 1 + tax_rate / 100
         if len(variants) > 1:
             price_str = " / ".join(
-                f"{v['variant_name']} ₹{v['price']:.0f}" for v in variants
+                f"{v['variant_name']} ₹{v['price'] * tax_mult:.0f}" for v in variants
             )
         elif len(variants) == 1:
-            price_str = f"₹{variants[0]['price']:.0f}"
+            price_str = f"₹{variants[0]['price'] * tax_mult:.0f}"
         else:
-            price_str = f"₹{item.get('price', 0):.0f}"
+            price_str = f"₹{item.get('price', 0) * tax_mult:.0f}"
 
         addons = item.get("addons", [])
         addon_hint = ""
@@ -130,10 +132,15 @@ def build_live_system_instruction(
                 if mods.get("add_ons"):     parts.extend(mods["add_ons"])
                 if mods.get("notes"):       parts.append(mods["notes"])
                 mod_str = f" ({', '.join(parts)})"
-            subtotal = c["unit_price"] * c["quantity"]
-            cart_lines.append(f"  {c['name']}{mod_str} ×{c['quantity']} = ₹{subtotal:.0f}")
+            line_tax    = c.get("tax_rate", 5.0) / 100
+            line_total  = c["unit_price"] * c["quantity"] * (1 + line_tax)
+            cart_lines.append(f"  {c['name']}{mod_str} ×{c['quantity']} = ₹{line_total:.0f} (incl. tax)")
         subtotal_val = sum(c["unit_price"] * c["quantity"] for c in cart)
-        cart_text = "\n".join(cart_lines) + f"\n  Subtotal: ₹{subtotal_val:.0f}"
+        tax_val      = sum(c["unit_price"] * c["quantity"] * c.get("tax_rate", 5.0) / 100 for c in cart)
+        grand_total  = round(subtotal_val + tax_val, 2)
+        cart_text = "\n".join(cart_lines) + (
+            f"\n  Grand Total (incl. 5% tax): ₹{grand_total:.0f}"
+        )
     else:
         cart_text = "  (empty)"
 
@@ -178,9 +185,11 @@ def build_live_system_instruction(
         "• Detect the language the customer is speaking and reply in EXACTLY that same language.\n"
         "• English → English. Hindi → pure Hindi. Tamil → pure Tamil. Telugu → pure Telugu.\n"
         f"{lang_hint}"
-        "• CRITICAL: When the customer speaks Hindi, Tamil, or Telugu — your SPOKEN AUDIO must be\n"
+        "• CRITICAL: When the customer speaks Hindi, Tamil, Telugu, Gujarati — your SPOKEN AUDIO must be\n"
         "  in that same language so the customer hears a natural reply in their own tongue.\n"
-        "  EXCEPTION: the machine tags [CMD:] [ROMAN:] [TRANSCRIPT:] MUST always be Roman/English.\n"
+        "  EXCEPTION: the machine tags [CMD:] [ROMAN:] [TRANSCRIPT:] MUST always be in Roman/English.\n"
+        "  The language lock applies ONLY to your spoken audio and its transliteration — NEVER to the\n"
+        "  machine tags. The machine tags are MANDATORY in every single turn, regardless of language.\n"
         "• Never switch languages unless the customer does first.\n"
         "• TRANSCRIPTION RULES — strictly follow these for BOTH input and output transcriptions:\n"
         "  1. TRANSLITERATE — do NOT translate. Write each word phonetically in Roman/Latin letters.\n"
@@ -206,36 +215,47 @@ def build_live_system_instruction(
         "8. For modifier requests ('make it spicy', 'large size'), confirm the change.\n"
         "9. Never mention items not on the MENU below.\n"
         "10. After adding an item, if there is an UPSELL OPPORTUNITY, mention it naturally.\n"
-        "11. TOTAL: After every add / remove / modify, end your spoken response with\n"
-        "    'Your total is ₹X.' using the subtotal in CURRENT ORDER below.\n"
+        "11. PRICING — CRITICAL: ALL prices in MENU and CURRENT ORDER are already tax-inclusive (incl. 5% GST).\n"
+        "    Always quote the tax-inclusive price when mentioning any item cost or total.\n"
+        "    NEVER say the pre-tax price. Example: Paneer Tikka is ₹210, not ₹200.\n"
+        "12. TOTAL: After every add / remove / modify, end your spoken response with\n"
+        "    'Your total is ₹X.' using the Grand Total (incl. 5% tax) in CURRENT ORDER below.\n"
         "    Skip this line only when the cart is empty.\n"
-        "12. COMBO SAVINGS: Proactively scan CURRENT ORDER against AVAILABLE COMBO DEALS.\n"
+        "13. COMBO SAVINGS: Proactively scan CURRENT ORDER against AVAILABLE COMBO DEALS.\n"
         "    If the cart fully or partially matches a combo, ALWAYS announce it without\n"
         "    being asked: 'Add [item] to unlock the [Combo Name] and save ₹X!'\n"
-        "13. CMD TAG — append at the very end of your output_audio_transcription on its own line.\n"
+        "14. CMD TAG — MANDATORY every single turn, no exceptions, even if speaking Gujarati/Hindi/Tamil.\n"
+        "    Append at the very end of your output_audio_transcription on its own line.\n"
         "    NEVER speak this aloud. Format:\n"
         "    [CMD: <intent> | <ExactMenuName> x<qty> (<key=val, key=val>)]\n"
         "    Use ONLY exact English item names from MENU below. intent values:\n"
         "      add_item | remove_item | modify_item | confirm_order | cancel_order\n"
         "      view_cart | view_menu | enquire_price | greeting | unknown\n"
-        "    Examples:\n"
+        "    COMPOUND TURNS — use ONE separate [CMD:] tag per action, each on its own line:\n"
+        "      [CMD: modify_item | Paneer Tikka x1 (size=full)]\n"
+        "      [CMD: remove_item | Dal Shorba x1]\n"
+        "    Single-action examples:\n"
         "      [CMD: add_item | Paneer Tikka x1 (size=full, spice=hot) | Masala Chai x2]\n"
         "      [CMD: remove_item | Veg Biryani x1]\n"
+        "      [CMD: modify_item | Masala Chai x1 (size=large, notes=less sugar)]\n"
         "      [CMD: confirm_order]\n"
         "      [CMD: greeting]\n"
-        "    CRITICAL: This tag MUST be in English/Roman regardless of the language lock.\n"
-        "14. ROMAN TAG — on its own line immediately after [CMD:].\n"
+        "    CRITICAL: Always in English/Roman, even when language lock is active.\n"
+        "    If no cart action: use [CMD: unknown] or [CMD: greeting] — never omit the tag.\n"
+        "15. ROMAN TAG — MANDATORY. On its own line immediately after [CMD:].\n"
         "    [ROMAN: <Aria's full spoken response transliterated into Roman/Latin>]\n"
         "    This is what the UI shows as Aria's response text.\n"
         "    Example (Hindi audio): [ROMAN: Paneer Tikka add kar diya! Aapka total hai Rs.250.]\n"
+        "    Example (Gujarati audio): [ROMAN: Paneer Tikka add karyo! Tamaro total chhe Rs.250.]\n"
         "    Example (English audio): [ROMAN: Added Paneer Tikka! Your total is Rs.250.]\n"
-        "    CRITICAL: Roman/Latin script ONLY.\n"
-        "15. TRANSCRIPT TAG — on its own line after [ROMAN:].\n"
+        "    CRITICAL: Roman/Latin script ONLY. MANDATORY every turn.\n"
+        "16. TRANSCRIPT TAG — MANDATORY. On its own line after [ROMAN:].\n"
         "    [TRANSCRIPT: <what the customer just said, TRANSLITERATED into Roman/Latin>]\n"
         "    This is what the UI shows as the customer's words.\n"
-        "    Example: customer says 'मुझे एक पनीर टिѓѓा डालना है' → [TRANSCRIPT: mujhe ek paneer tikka daalna hai]\n"
-        "    Example: customer says in English 'add one veg biryani' → [TRANSCRIPT: add one veg biryani]\n"
-        "    CRITICAL: Roman/Latin script ONLY. Transliterate, do NOT translate.\n\n"
+        "    Example: customer says Gujarati → [TRANSCRIPT: add van half paneer tikka]\n"
+        "    Example: customer says Hindi 'मुझे एक पनीर टिक्का डालना है' → [TRANSCRIPT: mujhe ek paneer tikka daalna hai]\n"
+        "    Example: customer says English 'add one veg biryani' → [TRANSCRIPT: add one veg biryani]\n"
+        "    CRITICAL: Roman/Latin script ONLY. Transliterate, do NOT translate. MANDATORY every turn.\n\n"
 
         "━━ AVAILABLE COMBO DEALS ━━\n"
         f"{combo_text}\n"

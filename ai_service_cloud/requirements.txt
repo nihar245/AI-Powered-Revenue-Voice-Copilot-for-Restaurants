@@ -1,0 +1,20 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic-settings==2.7.0
+
+# Database
+asyncpg==0.30.0
+
+httpx==0.28.1           # async HTTP client (used transitively by google-genai)
+
+# LLM — Google Gemini (legacy SDK for text generation)
+google-generativeai==0.8.4
+
+# Live API — Gemini 2.5 Flash Native Audio Dialogue (audio-in/audio-out)
+google-genai>=1.0.0
+
+# Audio conversion: WebM/Opus → PCM 16kHz (bundles a static ffmpeg binary)
+imageio-ffmpeg>=0.4.0
+
+
