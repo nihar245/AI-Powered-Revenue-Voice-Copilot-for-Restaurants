@@ -279,6 +279,15 @@ async def voice_turn(
 
     clean_response, cmd_hint, roman_display = _parse_response_tags(output_transcript)
 
+    # Detect language from the AI's response — it reliably mirrors the customer's
+    # language even when Gemini transcribes English speech in Devanagari script.
+    lang = _detect_language(clean_response)
+    if lang == "en":
+        # Double-check: if the input was clearly non-Latin, trust that instead
+        input_lang = _detect_language(input_transcript)
+        if input_lang != "en":
+            lang = input_lang
+
     return {
         "audio_b64":        audio_b64,
         "audio_mime":       "audio/wav",
@@ -286,5 +295,5 @@ async def voice_turn(
         "response_text":    clean_response,
         "response_display": roman_display or clean_response,
         "cmd_hint":         cmd_hint,
-        "language":         _detect_language(input_transcript),
+        "language":         lang,
     }

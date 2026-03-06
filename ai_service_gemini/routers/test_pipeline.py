@@ -299,12 +299,17 @@ async def voice_chat(
             else:
                 mi = next((m for m in menu if str(m["product_id"]) == pid), None)
                 if mi:
-                    # If size modifier is 'unknown' and item has multiple variants,
-                    # hold for clarification instead of guessing the first variant.
-                    size_val = (mods.get("size") or mods.get("variant") or "").lower() if mods else ""
+                    # Hold for clarification if item has multiple variants but no
+                    # size was specified OR the specified size doesn't match any variant.
+                    size_val = (mods.get("size") or mods.get("variant") or mods.get("portion") or "").lower().strip() if mods else ""
                     has_variants = len(mi.get("variants", [])) > 1
-                    if size_val == "unknown" and has_variants:
-                        new_clarification = clarification_question or f"Which size would you like for {mi['name']}? Options: {', '.join(v['variant_name'] for v in mi['variants'])}"
+                    _AMBIG = {"unknown", "unspecified", "null", "none", "n/a", "tbd", "not specified", "unset"}
+                    size_matches = bool(size_val) and size_val not in _AMBIG and any(
+                        size_val in v["variant_name"].lower() for v in mi.get("variants", [])
+                    )
+                    if has_variants and not size_matches:
+                        variant_options = ", ".join(v["variant_name"] for v in mi["variants"])
+                        new_clarification = clarification_question or f"Which size would you like for {mi['name']}? Options: {variant_options}"
                         session["pending_ambiguous_item"] = {**item_data, "product_id": pid}
                         cart_events.append(f"? Clarifying size for {mi['name']}")
                         continue
