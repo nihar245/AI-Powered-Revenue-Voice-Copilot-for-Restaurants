@@ -1,0 +1,52 @@
+{
+  "projectName": "AI Restaurant Copilot",
+  "type": "frontend",
+  "description": "Modern React + Tailwind AI-powered restaurant management SaaS dashboard",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "Public Landing Page",
+      "description": "A public marketing landing page with hero section, problem section, solution section, and CTA. Hero contains title 'AI Revenue & Voice Copilot for Restaurants', subtitle, Login and Sign Up buttons. The page must render at route /."
+    },
+    {
+      "id": "REQ-002",
+      "title": "Authentication - Login",
+      "description": "A login page at /login with email and password fields. On submitting any email/password combination, wait 800ms and redirect to /dashboard. No real backend validation. A loading spinner shows during redirect."
+    },
+    {
+      "id": "REQ-003",
+      "title": "Authentication - Signup",
+      "description": "A signup page at /signup with name, email, password fields. On submit redirect to /dashboard after 900ms. No backend validation required."
+    },
+    {
+      "id": "REQ-004",
+      "title": "Dashboard Overview Page",
+      "description": "After login at /dashboard, show 4 KPI cards: Total Orders Today (147), Total Revenue (₹58,420), Avg Order Value (₹397), Top Selling Item (Paneer Pizza). Show Orders Over Time area chart, Top Selling Items bar chart, Weekly Revenue bar chart. All data is mocked."
+    },
+    {
+      "id": "REQ-005",
+      "title": "Application Navigation",
+      "description": "A sidebar navbar with links: Dashboard (/dashboard), Orders (/dashboard/orders), Voice Ordering (/dashboard/voice), Analytics (/dashboard/analytics). Logout button returns to /. Active link is highlighted. On mobile shows hamburger menu."
+    },
+    {
+      "id": "REQ-006",
+      "title": "Orders Management Page",
+      "description": "At /dashboard/orders, show a table with columns: Order ID, Items, Price, Status, Source. Status filter buttons for All/Received/Preparing/Ready/Served. Click a row to open a Kitchen Order Ticket side panel showing order items and an AI Upsell Recommendation card with Apriori analysis badge."
+    },
+    {
+      "id": "REQ-007",
+      "title": "Voice Ordering Page",
+      "description": "At /dashboard/voice, show a microphone button. On click, simulate voice ordering: show animated transcript ('Ek paneer pizza aur ek coke dena'), detect items (Paneer Pizza, Coke), show AI upsell suggestion (Add Garlic Bread), show order summary, allow confirming order."
+    },
+    {
+      "id": "REQ-008",
+      "title": "Analytics Page",
+      "description": "At /dashboard/analytics, show a Recharts scatter plot for Menu Profitability (Margin vs Popularity with color-coded quadrants), a Combo Recommendations table with confidence bars (Apriori results), an Underperforming Items table with action recommendations, and 4 summary stat cards."
+    },
+    {
+      "id": "REQ-009",
+      "title": "SPA Routing - Direct URL Navigation",
+      "description": "All routes must work on direct URL navigation (no page-not-found for /dashboard, /dashboard/orders, /dashboard/voice, /dashboard/analytics). React Router handles client-side routing. Server serves index.html for all routes."
+    }
+  ]
+}
