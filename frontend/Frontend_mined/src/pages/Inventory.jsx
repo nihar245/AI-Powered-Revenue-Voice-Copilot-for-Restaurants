@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { apiFetch } from '../config'
-import { AlertTriangle, Package, TrendingUp, Zap, ClipboardList, Plus, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, Package, TrendingUp, Zap, ClipboardList, Plus, RotateCcw, X, Pencil, SlidersHorizontal } from 'lucide-react'
 
 const urgencyColor = {
   High: 'text-red-700 bg-red-50 border-red-200',
@@ -27,6 +27,12 @@ export default function Inventory() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [newIng, setNewIng] = useState({ name: '', unit: 'kg', current_stock: '', min_stock: '', reorder_qty: '', cost_per_unit: '' })
   const [saving, setSaving] = useState(false)
+  const [editModal, setEditModal] = useState(null)   // ingredient row
+  const [editIng, setEditIng] = useState({ name: '', unit: '', min_stock: '', reorder_qty: '', cost_per_unit: '' })
+  const [adjustModal, setAdjustModal] = useState(null) // { ing_id, name, unit }
+  const [adjustType, setAdjustType] = useState('wasted')
+  const [adjustQty, setAdjustQty] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
 
   const reload = () => {
     Promise.all([
@@ -77,6 +83,42 @@ export default function Inventory() {
       })
       setShowAddModal(false)
       setNewIng({ name: '', unit: 'kg', current_stock: '', min_stock: '', reorder_qty: '', cost_per_unit: '' })
+      reload()
+    } catch (e) { console.error(e) }
+    setSaving(false)
+  }
+
+  const handleEditIngredient = async () => {
+    if (!editModal) return
+    setSaving(true)
+    try {
+      await apiFetch(`/inventory/ingredients/${editModal.ing_id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editIng.name,
+          unit: editIng.unit,
+          min_stock: Number(editIng.min_stock),
+          reorder_qty: Number(editIng.reorder_qty),
+          cost_per_unit: Number(editIng.cost_per_unit),
+        }),
+      })
+      setEditModal(null)
+      reload()
+    } catch (e) { console.error(e) }
+    setSaving(false)
+  }
+
+  const handleAdjust = async () => {
+    if (!adjustQty || Number(adjustQty) <= 0) return
+    setSaving(true)
+    try {
+      await apiFetch('/inventory/adjust', {
+        method: 'POST',
+        body: JSON.stringify({ ing_id: adjustModal.ing_id, change_type: adjustType, qty: Number(adjustQty), reason: adjustReason || adjustType }),
+      })
+      setAdjustModal(null)
+      setAdjustQty('')
+      setAdjustReason('')
       reload()
     } catch (e) { console.error(e) }
     setSaving(false)
@@ -304,12 +346,26 @@ export default function Inventory() {
                     <td className="py-2.5 pr-3 text-surface-600 text-xs">₹{row.cost_per_unit}</td>
                     <td className="py-2.5 pr-3 text-surface-600 text-xs">{row.reorder_qty} {row.unit}</td>
                     <td className="py-2.5">
-                      <button
-                        onClick={() => setRestockModal({ ing_id: row.ing_id, name: row.name, unit: row.unit })}
-                        className="flex items-center gap-1 text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors font-medium"
-                      >
-                        <RotateCcw size={12} /> Restock
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setRestockModal({ ing_id: row.ing_id, name: row.name, unit: row.unit })}
+                          className="flex items-center gap-1 text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors font-medium"
+                        >
+                          <RotateCcw size={11} /> Restock
+                        </button>
+                        <button
+                          onClick={() => { setAdjustModal({ ing_id: row.ing_id, name: row.name, unit: row.unit }); setAdjustType('wasted'); setAdjustQty('') }}
+                          className="flex items-center gap-1 text-xs px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded-md hover:bg-red-100 transition-colors font-medium"
+                        >
+                          <SlidersHorizontal size={11} /> Adjust
+                        </button>
+                        <button
+                          onClick={() => { setEditModal(row); setEditIng({ name: row.name, unit: row.unit, min_stock: String(row.min_stock), reorder_qty: String(row.reorder_qty), cost_per_unit: String(row.cost_per_unit) }) }}
+                          className="flex items-center gap-1 text-xs px-2 py-1 bg-surface-50 text-surface-700 border border-surface-200 rounded-md hover:bg-surface-100 transition-colors font-medium"
+                        >
+                          <Pencil size={11} /> Edit
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -342,9 +398,9 @@ export default function Inventory() {
                 {log.map((row, i) => {
                   const typeColors = {
                     restock: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-                    usage: 'text-blue-700 bg-blue-50 border-blue-200',
-                    wastage: 'text-red-700 bg-red-50 border-red-200',
-                    adjustment: 'text-amber-700 bg-amber-50 border-amber-200',
+                    consumed: 'text-blue-700 bg-blue-50 border-blue-200',
+                    wasted: 'text-red-700 bg-red-50 border-red-200',
+                    adjusted: 'text-amber-700 bg-amber-50 border-amber-200',
                   }
                   const color = typeColors[row.change_type] || 'text-surface-600 bg-surface-50 border-surface-200'
                   return (
@@ -443,6 +499,90 @@ export default function Inventory() {
               className="w-full mt-5 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
               {saving ? 'Adding...' : 'Add Ingredient'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Ingredient Modal ── */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 relative animate-fade-in">
+            <button onClick={() => setEditModal(null)} className="absolute top-4 right-4 text-surface-400 hover:text-surface-600"><X size={18} /></button>
+            <h3 className="text-lg font-bold text-surface-900 mb-1">Edit {editModal.name}</h3>
+            <p className="text-surface-400 text-sm mb-5">Update ingredient settings — stock levels are not changed here (use Restock or Adjust)</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-surface-700 block mb-1">Name</label>
+                <input type="text" value={editIng.name} onChange={e => setEditIng({ ...editIng, name: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Unit</label>
+                <select value={editIng.unit} onChange={e => setEditIng({ ...editIng, unit: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300">
+                  {['kg', 'grams', 'litre', 'ml', 'pieces'].map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Cost per Unit (₹)</label>
+                <input type="number" min="0" step="any" value={editIng.cost_per_unit} onChange={e => setEditIng({ ...editIng, cost_per_unit: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Min Stock (alert threshold)</label>
+                <input type="number" min="0" step="any" value={editIng.min_stock} onChange={e => setEditIng({ ...editIng, min_stock: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Reorder Qty (suggested)</label>
+                <input type="number" min="0" step="any" value={editIng.reorder_qty} onChange={e => setEditIng({ ...editIng, reorder_qty: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+              </div>
+            </div>
+            <button onClick={handleEditIngredient} disabled={saving || !editIng.name}
+              className="w-full mt-5 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Adjust / Log Usage Modal ── */}
+      {adjustModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 relative animate-fade-in">
+            <button onClick={() => { setAdjustModal(null); setAdjustQty(''); setAdjustReason('') }} className="absolute top-4 right-4 text-surface-400 hover:text-surface-600"><X size={18} /></button>
+            <h3 className="text-lg font-bold text-surface-900 mb-1">Log Stock Adjustment</h3>
+            <p className="text-surface-400 text-sm mb-5">{adjustModal.name} · current stock will be reduced by this amount</p>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Type</label>
+                <div className="flex gap-2">
+                  {[{t:'consumed',label:'Consumed',col:'blue'},{t:'wasted',label:'Wasted',col:'red'},{t:'adjusted',label:'Adjusted',col:'amber'}].map(({t,label,col}) => (
+                    <button key={t} onClick={() => setAdjustType(t)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-colors ${
+                        adjustType === t
+                          ? `bg-${col}-100 text-${col}-700 border-${col}-300`
+                          : 'bg-surface-50 text-surface-500 border-surface-200 hover:bg-surface-100'
+                      }`}>{label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Quantity ({adjustModal.unit})</label>
+                <input type="number" min="0.001" step="any" value={adjustQty} onChange={e => setAdjustQty(e.target.value)}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="e.g. 2.5" autoFocus />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Reason (optional)</label>
+                <input type="text" value={adjustReason} onChange={e => setAdjustReason(e.target.value)}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="e.g. Evening prep" />
+              </div>
+              <button onClick={handleAdjust} disabled={saving || !adjustQty}
+                className="w-full py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {saving ? 'Saving...' : 'Log Adjustment'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -24,6 +24,7 @@ export default function Orders() {
   // Real menu data from API
   const [menuItems, setMenuItems] = useState([])  // [{item_id, name, variants:[{variant_id, variant_name, selling_price}]}]
   const [comboRecs, setComboRecs] = useState([])   // [{itemA, itemB, confidence, lift}]
+  const [availability, setAvailability] = useState({}) // { variant_id: { can_make, shortfalls } }
 
   // Customer typeahead (declared early — used in useEffect below)
   const [customerSearch, setCustomerSearch] = useState('');
@@ -34,6 +35,7 @@ export default function Orders() {
   useEffect(() => {
     apiFetch('/menu/items').then(items => setMenuItems(items)).catch(() => {})
     apiFetch('/revenue/top-combos').then(combos => setComboRecs(combos)).catch(() => {})
+    apiFetch('/inventory/availability').then(av => setAvailability(av || {})).catch(() => {})
   }, [])
 
   // Debounced customer typeahead
@@ -57,16 +59,20 @@ export default function Orders() {
       if (!item.variants || item.variants.length === 0) continue;
       for (const v of item.variants) {
         if (!v.is_available) continue;
+        const avail = availability[v.variant_id];
+        const can_make = avail === undefined ? true : avail.can_make; // no recipe = always available
         opts.push({
           label: v.variant_name !== 'Regular' ? `${item.name} (${v.variant_name})` : item.name,
           item_id: item.item_id,
           variant_id: v.variant_id,
           price: parseFloat(v.selling_price),
+          can_make,
+          shortfalls: avail?.shortfalls || [],
         })
       }
     }
     return opts
-  }, [menuItems])
+  }, [menuItems, availability])
 
   // Build upsell recommendation from combo data
   function buildRec(order) {
@@ -112,9 +118,11 @@ export default function Orders() {
   const [selectedMenuIdx, setSelectedMenuIdx] = useState(0);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cartItems, setCartItems] = useState([]); // { label, item_id, variant_id, price, qty, is_upsell, trigger_item_name }
+  const [orderError, setOrderError] = useState(null); // null | { message, shortfalls }
 
   const handleAddToCart = (opt = menuOptions[selectedMenuIdx], qty = selectedQuantity, isUpsell = false, triggerName = null) => {
     if (qty < 1 || !opt) return;
+    if (!opt.can_make) return; // blocked by inventory
     setCartItems(prev => {
       const existing = prev.find(i => i.variant_id === opt.variant_id);
       if (existing) {
@@ -173,12 +181,22 @@ export default function Orders() {
 
     try {
       await addOrder(payload);
-    } catch {
-      alert('Failed to create order');
+      setOrderError(null);
+    } catch (err) {
+      // Handle 409 stock shortfall from server
+      let parsed = null;
+      try { parsed = typeof err?.response?.data === 'object' ? err.response.data : await err?.json?.(); } catch {}
+      if (parsed?.shortfalls) {
+        setOrderError({ message: parsed.error, shortfalls: parsed.shortfalls });
+      } else {
+        setOrderError({ message: 'Failed to create order. Please try again.', shortfalls: [] });
+      }
+      return; // keep modal open so staff can remove the problematic item
     }
 
     setIsModalOpen(false);
     setCartItems([]);
+    setOrderError(null);
     setCustomerSearch('');
     setCustomerResults([]);
     setSelectedCustomer(null);
@@ -443,7 +461,7 @@ export default function Orders() {
           <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-surface-200 flex items-center justify-between bg-zinc-50">
               <h2 className="text-lg font-bold text-zinc-900">Create New Order</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
+              <button onClick={() => { setIsModalOpen(false); setOrderError(null); }} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
@@ -546,7 +564,9 @@ export default function Orders() {
                       className="w-full bg-surface-50 border border-surface-200 px-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
                     >
                       {menuOptions.map((opt, idx) => (
-                        <option key={opt.variant_id} value={idx}>{opt.label} — ₹{opt.price}</option>
+                        <option key={opt.variant_id} value={idx} disabled={!opt.can_make}>
+                          {opt.label} — ₹{opt.price}{!opt.can_make ? ' [OUT OF STOCK]' : ''}
+                        </option>
                       ))}
                     </select>
 
@@ -565,9 +585,11 @@ export default function Orders() {
 
                       <button
                         onClick={() => handleAddToCart(menuOptions[selectedMenuIdx], selectedQuantity, false, null)}
-                        className="flex-1 bg-zinc-900 hover:bg-black text-white font-medium text-sm h-9 rounded-lg flex items-center justify-center transition-colors"
+                        disabled={!menuOptions[selectedMenuIdx]?.can_make}
+                        title={!menuOptions[selectedMenuIdx]?.can_make ? `Out of stock: ${menuOptions[selectedMenuIdx]?.shortfalls?.join(', ')}` : undefined}
+                        className="flex-1 bg-zinc-900 hover:bg-black text-white font-medium text-sm h-9 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Add Item
+                        {menuOptions[selectedMenuIdx]?.can_make === false ? 'Out of Stock' : 'Add Item'}
                       </button>
                     </div>
                   </div>
@@ -612,6 +634,18 @@ export default function Orders() {
                   >
                     Create Order
                   </button>
+                  {orderError && (
+                    <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3">
+                      <p className="text-xs font-semibold text-red-700 mb-1">{orderError.message}</p>
+                      {orderError.shortfalls?.length > 0 && (
+                        <ul className="text-xs text-red-600 space-y-0.5 list-disc list-inside">
+                          {orderError.shortfalls.map((s, i) => (
+                            <li key={i}>{s.ingredient}: need {s.required}, have {s.available}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -638,6 +672,8 @@ export default function Orders() {
                             <span className="text-xs font-bold text-surface-700">₹{sug.price}</span>
                             {alreadyInCart ? (
                               <span className="text-[10px] text-emerald-600 font-semibold">✓ Added</span>
+                            ) : !sug.can_make ? (
+                              <span className="text-[10px] text-red-400 font-semibold">Out of stock</span>
                             ) : (
                               <button
                                 onClick={() => handleAddToCart(sug, 1, true, sug.baseItem)}

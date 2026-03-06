@@ -111,7 +111,7 @@ exports.ingredients = async (_req, res, next) => {
 //   variants: [{ variant_name, selling_price, gst_pct, recipe: [{ ing_id, qty_required }] }]
 // }
 exports.create = async (req, res, next) => {
-  const client = await db.connect();
+  const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const { name, description, category_id, is_veg, is_jain, tags, image_url, variants } = req.body;
@@ -179,7 +179,7 @@ exports.create = async (req, res, next) => {
 // ──── Update a product ───────────────────────────────────────────────────────
 // Allows updating item details, and full replace of variants + recipes
 exports.update = async (req, res, next) => {
-  const client = await db.connect();
+  const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
     const { id } = req.params;
@@ -202,9 +202,31 @@ exports.update = async (req, res, next) => {
 
     // If variants provided, replace them entirely
     if (variants && variants.length > 0) {
-      // Remove old recipes & variants
+      // Find variants that have order history — these must NOT be hard-deleted
+      // (order_items stores price snapshots so old revenue is safe, but FK must remain intact)
+      const { rows: usedVariants } = await client.query(
+        `SELECT DISTINCT variant_id FROM order_items WHERE variant_id IN
+         (SELECT variant_id FROM menu_variants WHERE item_id = $1)`, [id]
+      );
+      const usedIds = new Set(usedVariants.map(r => r.variant_id));
+
+      // Delete recipes for all variants of this item (recipe rows have no order_items FK)
       await client.query('DELETE FROM recipes WHERE item_id = $1', [id]);
-      await client.query('DELETE FROM menu_variants WHERE item_id = $1', [id]);
+
+      if (usedIds.size === 0) {
+        // No order history — safe to hard-delete old variants
+        await client.query('DELETE FROM menu_variants WHERE item_id = $1', [id]);
+      } else {
+        // Soft-disable variants with order history; hard-delete variants without
+        await client.query(
+          `DELETE FROM menu_variants WHERE item_id = $1 AND variant_id NOT IN (${[...usedIds].map((_, i) => `$${i + 2}`).join(',')})`,
+          [id, ...usedIds]
+        );
+        await client.query(
+          `UPDATE menu_variants SET is_available = FALSE WHERE item_id = $1 AND variant_id IN (${[...usedIds].map((_, i) => `$${i + 2}`).join(',')})`,
+          [id, ...usedIds]
+        );
+      }
 
       for (const v of variants) {
         let foodCost = 0;

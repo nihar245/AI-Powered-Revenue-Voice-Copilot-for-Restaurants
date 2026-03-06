@@ -53,8 +53,9 @@ exports.performanceSignals = async (_req, res, next) => {
           ELSE 'Dog'
         END AS bcg_class,
         r.ing_id
-      FROM item_perf ip, item_medians im
+      FROM item_perf ip
       JOIN recipes r ON ip.item_id = r.item_id AND r.ing_id IN (${placeholders})
+      CROSS JOIN item_medians im
     `, lowIngIds);
 
     // Merge in ingredient detail
@@ -197,6 +198,65 @@ exports.updateIngredient = async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Ingredient not found' });
     res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ──── Manual stock adjustment (consumed, wasted, adjusted) ──────────────────
+exports.adjust = async (req, res, next) => {
+  try {
+    const { ing_id, change_type, qty, reason } = req.body;
+    const validTypes = ['consumed', 'wasted', 'adjusted'];
+    if (!ing_id || !qty || qty <= 0 || !change_type || !validTypes.includes(change_type)) {
+      return res.status(400).json({ error: 'ing_id, valid change_type (consumed/wasted/adjusted), and positive qty required' });
+    }
+    const delta = -Math.abs(qty);
+    await db.query(
+      `UPDATE ingredients SET current_stock = GREATEST(0, current_stock + $1) WHERE ing_id = $2`,
+      [delta, ing_id]
+    );
+    await db.query(
+      `INSERT INTO inventory_log (ing_id, change_type, qty_changed, reason, logged_at)
+       VALUES ($1, $2, $3, $4, NOW())`,
+      [ing_id, change_type, delta, reason || change_type]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ──── Variant-level stock availability ───────────────────────────────────────
+// Returns { [variant_id]: { can_make: bool, shortfalls: string[] } }
+// Only variants that have recipe rows are included; others are treated as always available.
+exports.availability = async (_req, res, next) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        r.variant_id,
+        i.name        AS ingredient,
+        i.current_stock::float,
+        r.qty_required::float
+      FROM recipes r
+      JOIN ingredients i ON i.ing_id = r.ing_id
+    `);
+
+    const byVariant = {};
+    for (const row of rows) {
+      if (!byVariant[row.variant_id]) byVariant[row.variant_id] = [];
+      byVariant[row.variant_id].push(row);
+    }
+
+    const result = {};
+    for (const [vid, ingredients] of Object.entries(byVariant)) {
+      const shortfalls = ingredients
+        .filter(r => r.current_stock < r.qty_required)
+        .map(r => r.ingredient);
+      result[parseInt(vid)] = { can_make: shortfalls.length === 0, shortfalls };
+    }
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

@@ -123,7 +123,41 @@ exports.create = async (req, res, next) => {
     const discountAmt = req.body.discount_amt || 0;
     const total = subtotal - discountAmt + totalTax;
 
-    // 1. Insert order
+    // ── Stock availability pre-check ────────────────────────────────────────
+    // For each ordered item, check that every ingredient required by its recipe
+    // has enough current_stock to fulfil this order.  We aggregate by ing_id
+    // across all items so partial orders (e.g. 2 variants using the same
+    // ingredient) are handled correctly.
+    const requiredStock = {}; // ing_id -> { name, needed, available }
+    for (const ri of resolvedItems) {
+      const { rows: recipeRows } = await client.query(
+        `SELECT r.ing_id, i.name, i.current_stock::float,
+                r.qty_required::float
+         FROM recipes r
+         JOIN ingredients i ON i.ing_id = r.ing_id
+         WHERE r.item_id = $1 AND r.variant_id = $2`,
+        [ri.item_id, ri.variant_id]
+      );
+      for (const rr of recipeRows) {
+        if (!requiredStock[rr.ing_id]) {
+          requiredStock[rr.ing_id] = { name: rr.name, needed: 0, available: rr.current_stock };
+        }
+        requiredStock[rr.ing_id].needed += rr.qty_required * ri.qty;
+      }
+    }
+    const shortfalls = Object.values(requiredStock).filter(r => r.needed > r.available);
+    if (shortfalls.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Insufficient stock to complete this order',
+        shortfalls: shortfalls.map(s => ({
+          ingredient: s.name,
+          required: Math.round(s.needed * 1000) / 1000,
+          available: Math.round(s.available * 1000) / 1000,
+        })),
+      });
+    }
+    // ────────────────────────────────────────────────────────────────────────
     // order_date allows the frontend to pass a simulation date (DATA_DATE) so new
     // orders appear in the same date bucket as the historical seed data.
     const orderDate = req.body.order_date || null;
