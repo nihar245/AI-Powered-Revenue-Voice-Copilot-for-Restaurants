@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../config'
-import { Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Package, Leaf, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, ChevronDown, ChevronUp, Package, Leaf, Search, Layers } from 'lucide-react'
 
 const badgeColor = {
   veg: 'text-emerald-700 bg-emerald-50 border-emerald-200',
@@ -44,6 +44,18 @@ export default function Products() {
   }
   const [form, setForm] = useState(emptyForm)
 
+  // ── Tab state ──
+  const [activeTab, setActiveTab] = useState('products') // 'products' | 'combos'
+
+  // ── Combos state ──
+  const [combos, setCombos] = useState([])
+  const [showComboForm, setShowComboForm] = useState(false)
+  const [editComboId, setEditComboId] = useState(null)
+  const [savingCombo, setSavingCombo] = useState(false)
+  const [expandedCombo, setExpandedCombo] = useState(null)
+  const emptyComboForm = { combo_name: '', description: '', selling_price: '', valid_from: '', valid_to: '', items: [{ item_id: '', variant_id: '', qty: 1 }] }
+  const [comboForm, setComboForm] = useState(emptyComboForm)
+
   const reload = () => {
     setLoading(true)
     Promise.all([
@@ -51,13 +63,15 @@ export default function Products() {
       apiFetch('/products/categories').catch(() => []),
       apiFetch('/products/ingredients').catch(() => []),
       apiFetch('/analytics/popularity-scoring').catch(() => []),
-    ]).then(([p, c, i, ps]) => {
+      apiFetch('/combos').catch(() => []),
+    ]).then(([p, c, i, ps, cb]) => {
       setProducts(Array.isArray(p) ? p : [])
       setCategories(Array.isArray(c) ? c : [])
       setIngredients(Array.isArray(i) ? i : [])
       const map = {}
       if (Array.isArray(ps)) ps.forEach(s => { map[s.item_id] = s })
       setAnalyticsMap(map)
+      setCombos(Array.isArray(cb) ? cb : [])
       setLoading(false)
     })
   }
@@ -149,6 +163,90 @@ export default function Products() {
     ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, recipe: v.recipe.map((r, j) => j === ri ? { ...r, [field]: val } : r) } : v)
   }))
 
+  // ── Combo CRUD helpers ──
+  const allVariantOptions = useMemo(() => {
+    const opts = []
+    for (const p of products) {
+      for (const v of (p.variants || [])) {
+        opts.push({ item_id: p.item_id, variant_id: v.variant_id, label: v.variant_name !== 'Regular' ? `${p.name} (${v.variant_name})` : p.name, selling_price: v.selling_price, food_cost: v.food_cost })
+      }
+    }
+    return opts
+  }, [products])
+
+  const comboIndividualTotal = useMemo(() => {
+    return comboForm.items.reduce((sum, it) => {
+      const opt = allVariantOptions.find(o => o.variant_id === Number(it.variant_id))
+      return sum + (opt ? opt.selling_price * (it.qty || 1) : 0)
+    }, 0)
+  }, [comboForm.items, allVariantOptions])
+
+  const openEditCombo = (combo) => {
+    setComboForm({
+      combo_name: combo.combo_name,
+      description: combo.description || '',
+      selling_price: String(combo.selling_price),
+      valid_from: combo.valid_from ? combo.valid_from.split('T')[0] : '',
+      valid_to: combo.valid_to ? combo.valid_to.split('T')[0] : '',
+      items: (combo.items || []).map(it => ({ item_id: String(it.item_id), variant_id: String(it.variant_id), qty: it.qty || 1 })),
+    })
+    setEditComboId(combo.combo_id)
+    setShowComboForm(true)
+  }
+
+  const handleSaveCombo = async () => {
+    if (!comboForm.combo_name || !comboForm.selling_price || comboForm.items.length < 2) return
+    setSavingCombo(true)
+    try {
+      const body = {
+        combo_name: comboForm.combo_name,
+        description: comboForm.description || null,
+        selling_price: parseFloat(comboForm.selling_price),
+        valid_from: comboForm.valid_from || null,
+        valid_to: comboForm.valid_to || null,
+        items: comboForm.items.filter(it => it.item_id && it.variant_id).map(it => ({
+          item_id: parseInt(it.item_id), variant_id: parseInt(it.variant_id), qty: parseInt(it.qty) || 1,
+        })),
+      }
+      if (editComboId) {
+        await apiFetch(`/combos/${editComboId}`, { method: 'PUT', body: JSON.stringify(body) })
+      } else {
+        await apiFetch('/combos', { method: 'POST', body: JSON.stringify(body) })
+      }
+      setShowComboForm(false)
+      setEditComboId(null)
+      setComboForm(emptyComboForm)
+      reload()
+    } catch (e) { console.error(e) }
+    setSavingCombo(false)
+  }
+
+  const handleDeleteCombo = async (id) => {
+    if (!confirm('Deactivate this combo?')) return
+    try {
+      await apiFetch(`/combos/${id}`, { method: 'DELETE' })
+      reload()
+    } catch (e) { console.error(e) }
+  }
+
+  const addComboItem = () => setComboForm(f => ({ ...f, items: [...f.items, { item_id: '', variant_id: '', qty: 1 }] }))
+  const removeComboItem = (idx) => setComboForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }))
+  const updateComboItem = (idx, field, val) => {
+    setComboForm(f => ({
+      ...f,
+      items: f.items.map((it, i) => {
+        if (i !== idx) return it
+        if (field === 'item_id') {
+          // auto-select first variant when item changes
+          const prod = products.find(p => p.item_id === Number(val))
+          const firstVar = prod?.variants?.[0]
+          return { ...it, item_id: val, variant_id: firstVar ? String(firstVar.variant_id) : '' }
+        }
+        return { ...it, [field]: val }
+      }),
+    }))
+  }
+
   const computeFoodCost = (recipe) => {
     const ingMap = Object.fromEntries(ingredients.map(i => [i.ing_id, i.cost_per_unit]))
     return recipe.reduce((sum, r) => sum + (ingMap[r.ing_id] || 0) * (parseFloat(r.qty_required) || 0), 0)
@@ -172,12 +270,30 @@ export default function Products() {
           <h1 className="text-2xl font-bold text-surface-900">Products</h1>
           <p className="text-surface-400 text-sm mt-0.5">Manage menu items, variants, recipes &amp; pricing</p>
         </div>
-        <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true) }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors">
-          <Plus size={16} /> New Product
-        </button>
+        {activeTab === 'products' ? (
+          <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true) }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors">
+            <Plus size={16} /> New Product
+          </button>
+        ) : (
+          <button onClick={() => { setComboForm(emptyComboForm); setEditComboId(null); setShowComboForm(true) }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors">
+            <Plus size={16} /> New Combo
+          </button>
+        )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-surface-100 rounded-lg p-1 w-fit">
+        {[{ key: 'products', label: 'Products', icon: <Package size={14} /> }, { key: 'combos', label: 'Combos', icon: <Layers size={14} /> }].map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === t.key ? 'bg-white text-primary-700 shadow-sm' : 'text-surface-500 hover:text-surface-700'}`}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'products' && <>
       {/* KPI */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
@@ -306,6 +422,205 @@ export default function Products() {
           )
         })}
       </div>
+      </>}
+
+      {/* ── Combos Tab ── */}
+      {activeTab === 'combos' && <>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {[
+            { label: 'Total Combos', value: combos.length, color: 'text-primary-600' },
+            { label: 'Active', value: combos.filter(c => c.is_active).length, color: 'text-emerald-600' },
+            { label: 'Avg Savings', value: combos.length > 0 ? '₹' + Math.round(combos.reduce((s, c) => s + parseFloat(c.savings || 0), 0) / combos.length) : '—', color: 'text-violet-600' },
+          ].map(k => (
+            <div key={k.label} className="card p-4">
+              <p className="text-xs text-surface-400 font-medium mb-1">{k.label}</p>
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-3">
+          {combos.length === 0 ? (
+            <div className="card p-12 text-center">
+              <Layers size={40} className="mx-auto text-surface-300 mb-3" />
+              <p className="text-surface-500 font-semibold">No combo deals yet</p>
+              <p className="text-surface-400 text-sm mt-1">Create bundled offers to boost sales</p>
+            </div>
+          ) : combos.map(combo => {
+            const isExp = expandedCombo === combo.combo_id
+            return (
+              <div key={combo.combo_id} className={`card overflow-hidden transition-all ${!combo.is_active ? 'opacity-60' : ''}`}>
+                <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-surface-50 transition-colors"
+                  onClick={() => setExpandedCombo(isExp ? null : combo.combo_id)}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-surface-900 text-sm">{combo.combo_name}</h3>
+                      {parseFloat(combo.savings) > 0 && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                          Save ₹{parseFloat(combo.savings).toFixed(0)}
+                        </span>
+                      )}
+                      {!combo.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded-full border font-semibold text-red-600 bg-red-50 border-red-200">Inactive</span>}
+                    </div>
+                    <p className="text-xs text-surface-400 mt-0.5">
+                      {combo.items?.length || 0} items
+                      {combo.valid_from && ` · From ${new Date(combo.valid_from).toLocaleDateString()}`}
+                      {combo.valid_to && ` to ${new Date(combo.valid_to).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-surface-900">₹{parseFloat(combo.selling_price).toFixed(0)}</p>
+                    {combo.individual_total && (
+                      <p className="text-xs text-surface-400 line-through">₹{parseFloat(combo.individual_total).toFixed(0)}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={e => { e.stopPropagation(); openEditCombo(combo) }}
+                      className="p-1.5 rounded-md hover:bg-surface-100 text-surface-400 hover:text-primary-600 transition-colors">
+                      <Pencil size={14} />
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); handleDeleteCombo(combo.combo_id) }}
+                      className="p-1.5 rounded-md hover:bg-red-50 text-surface-400 hover:text-red-600 transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                    {isExp ? <ChevronUp size={16} className="text-surface-400" /> : <ChevronDown size={16} className="text-surface-400" />}
+                  </div>
+                </div>
+
+                {isExp && (
+                  <div className="border-t border-surface-100 bg-surface-50/50 p-4">
+                    {combo.description && <p className="text-xs text-surface-500 mb-3">{combo.description}</p>}
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-surface-200">
+                          {['Item', 'Variant', 'Qty', 'Unit Price', 'Subtotal'].map(h => (
+                            <th key={h} className="text-left text-xs text-surface-400 font-semibold uppercase tracking-wider pb-2 pr-3">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-100">
+                        {(combo.items || []).map((it, idx) => (
+                          <tr key={idx} className="hover:bg-white transition-colors">
+                            <td className="py-2 pr-3 text-surface-900 font-medium text-xs">{it.item_name}</td>
+                            <td className="py-2 pr-3 text-surface-500 text-xs">{it.variant_name}</td>
+                            <td className="py-2 pr-3 text-surface-700 text-xs">{it.qty}</td>
+                            <td className="py-2 pr-3 text-surface-500 text-xs">₹{parseFloat(it.selling_price || 0).toFixed(0)}</td>
+                            <td className="py-2 pr-3 text-surface-700 text-xs font-semibold">₹{(parseFloat(it.selling_price || 0) * it.qty).toFixed(0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="flex gap-4 mt-3 text-xs">
+                      <div className="px-3 py-1.5 rounded-md bg-white border border-surface-200">
+                        <span className="text-surface-400">Individual Total:</span> <span className="font-bold text-surface-700">₹{parseFloat(combo.individual_total || 0).toFixed(0)}</span>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-md bg-white border border-surface-200">
+                        <span className="text-surface-400">Combo Price:</span> <span className="font-bold text-primary-700">₹{parseFloat(combo.selling_price).toFixed(0)}</span>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-md bg-emerald-50 border border-emerald-200">
+                        <span className="text-emerald-700">You Save:</span> <span className="font-bold text-emerald-700">₹{parseFloat(combo.savings || 0).toFixed(0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </>}
+
+      {/* ── Combo Create/Edit Modal ── */}
+      {showComboForm && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-y-auto py-8">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 relative animate-fade-in">
+            <button onClick={() => { setShowComboForm(false); setEditComboId(null); setComboForm(emptyComboForm) }}
+              className="absolute top-4 right-4 text-surface-400 hover:text-surface-600"><X size={18} /></button>
+            <h3 className="text-lg font-bold text-surface-900 mb-5">{editComboId ? 'Edit Combo' : 'New Combo Deal'}</h3>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-surface-700 block mb-1">Combo Name *</label>
+                <input type="text" value={comboForm.combo_name} onChange={e => setComboForm({ ...comboForm, combo_name: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="e.g. Burger + Fries Combo" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-surface-700 block mb-1">Description</label>
+                <input type="text" value={comboForm.description} onChange={e => setComboForm({ ...comboForm, description: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="Short description..." />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-surface-700 block mb-1">Selling Price (₹) *</label>
+                <input type="number" min="0" step="any" value={comboForm.selling_price} onChange={e => setComboForm({ ...comboForm, selling_price: e.target.value })}
+                  className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="199" />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-surface-700 block mb-1">Valid From</label>
+                  <input type="date" value={comboForm.valid_from} onChange={e => setComboForm({ ...comboForm, valid_from: e.target.value })}
+                    className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-sm font-medium text-surface-700 block mb-1">Valid To</label>
+                  <input type="date" value={comboForm.valid_to} onChange={e => setComboForm({ ...comboForm, valid_to: e.target.value })}
+                    className="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" />
+                </div>
+              </div>
+            </div>
+
+            {/* Price summary */}
+            <div className="flex gap-4 mb-4 text-xs flex-wrap">
+              <div className="px-3 py-1.5 rounded-md bg-surface-50 border border-surface-200">
+                <span className="text-surface-400">Individual Total:</span> <span className="font-bold text-surface-700">₹{comboIndividualTotal.toFixed(0)}</span>
+              </div>
+              {parseFloat(comboForm.selling_price) > 0 && comboIndividualTotal > 0 && (
+                <div className="px-3 py-1.5 rounded-md bg-emerald-50 border border-emerald-200">
+                  <span className="text-emerald-700">Savings:</span>{' '}
+                  <span className="font-bold text-emerald-700">₹{(comboIndividualTotal - parseFloat(comboForm.selling_price)).toFixed(0)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Combo items */}
+            <div className="mb-4 flex items-center justify-between">
+              <h4 className="font-semibold text-surface-900 text-sm">Combo Items (min 2) *</h4>
+              <button onClick={addComboItem} className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium">
+                <Plus size={14} /> Add Item
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {comboForm.items.map((it, idx) => {
+                const selectedProduct = products.find(p => p.item_id === Number(it.item_id))
+                const variants = selectedProduct?.variants || []
+                const selVar = allVariantOptions.find(o => o.variant_id === Number(it.variant_id))
+                return (
+                  <div key={idx} className="flex items-center gap-2">
+                    <select value={it.item_id} onChange={e => updateComboItem(idx, 'item_id', e.target.value)}
+                      className="flex-1 border border-surface-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-300">
+                      <option value="">Select product</option>
+                      {products.filter(p => p.is_available).map(p => <option key={p.item_id} value={p.item_id}>{p.name}</option>)}
+                    </select>
+                    <select value={it.variant_id} onChange={e => updateComboItem(idx, 'variant_id', e.target.value)}
+                      className="w-32 border border-surface-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-300">
+                      <option value="">Variant</option>
+                      {variants.map(v => <option key={v.variant_id} value={v.variant_id}>{v.variant_name} – ₹{v.selling_price}</option>)}
+                    </select>
+                    <input type="number" min="1" value={it.qty} onChange={e => updateComboItem(idx, 'qty', e.target.value)}
+                      className="w-16 border border-surface-200 rounded-md px-2 py-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-primary-300" />
+                    {selVar && <span className="text-xs text-surface-500 w-16 text-right shrink-0">₹{(selVar.selling_price * (it.qty || 1)).toFixed(0)}</span>}
+                    <button onClick={() => removeComboItem(idx)} className="text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <button onClick={handleSaveCombo} disabled={savingCombo || !comboForm.combo_name || !comboForm.selling_price || comboForm.items.filter(i => i.item_id && i.variant_id).length < 2}
+              className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-colors">
+              {savingCombo ? 'Saving...' : editComboId ? 'Update Combo' : 'Create Combo'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Create/Edit Modal ── */}
       {showForm && (

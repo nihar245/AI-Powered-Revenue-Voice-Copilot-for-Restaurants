@@ -18,6 +18,7 @@ const kotRoutes = require('./routes/kot');
 const productsRoutes = require('./routes/products');
 const reportsRoutes  = require('./routes/reports');
 const paymentsRoutes = require('./routes/payments');
+const combosRoutes   = require('./routes/combos');
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use('/api/kot', kotRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/reports',  reportsRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/combos',   combosRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

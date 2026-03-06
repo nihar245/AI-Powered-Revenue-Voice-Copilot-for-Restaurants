@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw } from 'lucide-react'
+import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw, Layers } from 'lucide-react'
 import { usePOS } from '../context/POSContext'
 import { apiFetch } from '../config'
 
@@ -25,6 +25,7 @@ export default function Orders() {
   const [menuItems, setMenuItems] = useState([])  // [{item_id, name, variants:[{variant_id, variant_name, selling_price}]}]
   const [comboRecs, setComboRecs] = useState([])   // [{itemA, itemB, confidence, lift}]
   const [availability, setAvailability] = useState({}) // { variant_id: { can_make, shortfalls } }
+  const [combos, setCombos] = useState([])  // combo deals from /combos
 
   // Customer typeahead (declared early — used in useEffect below)
   const [customerSearch, setCustomerSearch] = useState('');
@@ -36,6 +37,7 @@ export default function Orders() {
     apiFetch('/menu/items').then(items => setMenuItems(items)).catch(() => {})
     apiFetch('/revenue/top-combos').then(combos => setComboRecs(combos)).catch(() => {})
     apiFetch('/inventory/availability').then(av => setAvailability(av || {})).catch(() => {})
+    apiFetch('/combos').then(c => setCombos(Array.isArray(c) ? c.filter(x => x.is_active) : [])).catch(() => {})
   }, [])
 
   // Debounced customer typeahead
@@ -134,6 +136,23 @@ export default function Orders() {
     });
     if (!isUpsell) setSelectedQuantity(1);
   };
+
+  const handleAddCombo = (combo) => {
+    if (!combo.items?.length) return
+    // Add each combo item to cart, tagged with the combo name
+    for (const it of combo.items) {
+      const opt = menuOptions.find(o => o.variant_id === it.variant_id)
+      if (!opt) continue
+      // Proportional pricing: scale each item's price by (combo price / individual total)
+      const ratio = parseFloat(combo.individual_total) > 0 ? parseFloat(combo.selling_price) / parseFloat(combo.individual_total) : 1
+      const comboPrice = Math.round(opt.price * ratio * 100) / 100
+      setCartItems(prev => {
+        const existing = prev.find(i => i.variant_id === it.variant_id && i.combo_name === combo.combo_name)
+        if (existing) return prev
+        return [...prev, { ...opt, price: comboPrice, qty: it.qty || 1, combo_name: combo.combo_name, is_upsell: false, trigger_item_name: null }]
+      })
+    }
+  }
 
   // Compute live upsell suggestions: items frequently paired with anything in cart
   const upsellSuggestions = useMemo(() => {
@@ -636,6 +655,39 @@ export default function Orders() {
                   )
                 })()}
 
+                {/* Combo Deals quick-add */}
+                {combos.length > 0 && (
+                  <div className="rounded-xl border border-orange-200 bg-orange-50/60 p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Layers size={13} className="text-orange-600" />
+                      <p className="text-xs font-semibold text-orange-700 uppercase tracking-widest">Combo Deals</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {combos.map(combo => {
+                        const allInCart = (combo.items || []).every(it => cartItems.some(ci => ci.variant_id === it.variant_id && ci.combo_name === combo.combo_name))
+                        return (
+                          <button
+                            key={combo.combo_id}
+                            onClick={() => !allInCart && handleAddCombo(combo)}
+                            disabled={allInCart}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                              allInCart
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-default'
+                                : 'bg-white border-orange-200 text-orange-800 hover:bg-orange-100'
+                            }`}
+                          >
+                            {allInCart ? '✓' : <Plus size={11} />}
+                            {combo.combo_name} — ₹{parseFloat(combo.selling_price).toFixed(0)}
+                            {parseFloat(combo.savings) > 0 && (
+                              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded ml-1">Save ₹{parseFloat(combo.savings).toFixed(0)}</span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-2 border-t border-dashed border-surface-200">
                   <label className="block text-xs font-semibold text-surface-500 uppercase tracking-widest mb-1.5">Item Selector</label>
                   <div className="flex flex-col gap-3">
@@ -693,8 +745,10 @@ export default function Orders() {
                         </button>
                         <div className="flex items-center gap-1 pr-4">
                           {item.is_upsell && <Sparkles size={10} className="text-violet-500 shrink-0" />}
+                          {item.combo_name && <Layers size={10} className="text-orange-500 shrink-0" />}
                           <span className="text-xs font-semibold">{item.label}</span>
                         </div>
+                        {item.combo_name && <span className="text-[10px] text-orange-500 font-medium -mt-0.5">{item.combo_name}</span>}
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] text-zinc-500">₹{item.price} x{item.qty}</span>
                           <span className="text-xs font-bold text-zinc-900">₹{item.price * item.qty}</span>
