@@ -1,0 +1,93 @@
+INFO:     Will watch for changes in these directories: ['C:\\Users\\siddh\\OneDrive\\Desktop\\Petpooja\\ai_service_gemini']
+INFO:     Uvicorn running on http://127.0.0.1:8002 (Press CTRL+C to quit)
+INFO:     Started reloader process [28640] using WatchFiles
+INFO:     Started server process [4352]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4352]
+INFO:     Started server process [29796]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29796]
+INFO:     Started server process [29880]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\uvicorn\protocols\http\httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\uvicorn\middleware\proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\fastapi\applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\middleware\errors.py", line 187, in __call__
+    raise exc
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\siddh\OneDrive\Desktop\Petpooja\ai_service_gemini\routers\voice.py", line 294, in voice_order
+    cart=[CartItem(**{k: v for k, v in item.items()
+          ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                     if k in CartItem.model_fields}) for item in cart],
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\siddh\OneDrive\Desktop\Petpooja\.venv\Lib\site-packages\pydantic\main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+pydantic_core._pydantic_core.ValidationError: 1 validation error for CartItem
+variant_id
+  Input should be a valid string [type=string_type, input_value=54, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type
+WARNING:  WatchFiles detected changes in 'main.py', 'services\prompts.py', 'services\database\queries.py', 'routers\voice.py', 'routers\test_pipeline.py', 'config.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29880]
+INFO:     Started server process [29112]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

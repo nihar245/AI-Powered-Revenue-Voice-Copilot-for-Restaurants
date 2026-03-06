@@ -76,6 +76,22 @@ const db = require('./config/db');
 
 async function migrate() {
   try {
+    // Create restaurants table first (required by users FK)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS restaurants (
+        restaurant_id    SERIAL PRIMARY KEY,
+        name             VARCHAR(100) NOT NULL,
+        address          TEXT,
+        city             VARCHAR(60),
+        cuisine_type     VARCHAR(60),
+        gstin            VARCHAR(20),
+        fssai_no         VARCHAR(20),
+        opening_time     TIME,
+        closing_time     TIME,
+        seating_capacity INT DEFAULT 0
+      )
+    `);
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         user_id       SERIAL PRIMARY KEY,
@@ -84,6 +100,23 @@ async function migrate() {
         password_hash VARCHAR(255) NOT NULL,
         restaurant_id INT REFERENCES restaurants(restaurant_id),
         created_at    TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    // Add is_upsell column to order_items if it doesn't exist (schema patch)
+    await db.query(`
+      ALTER TABLE order_items ADD COLUMN IF NOT EXISTS is_upsell BOOLEAN DEFAULT FALSE
+    `);
+
+    // Create upsell_events table if it doesn't exist
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS upsell_events (
+        event_id          SERIAL PRIMARY KEY,
+        order_id          INT REFERENCES orders(order_id),
+        item_id           INT REFERENCES menu_items(item_id),
+        variant_id        INT REFERENCES menu_variants(variant_id),
+        trigger_item_name VARCHAR(150),
+        revenue           NUMERIC(10,2),
+        created_at        TIMESTAMPTZ DEFAULT NOW()
       )
     `);
     console.log('Migration check complete');

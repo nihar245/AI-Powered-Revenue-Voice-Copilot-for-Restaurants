@@ -19,12 +19,26 @@ exports.createRazorpayOrder = async (req, res, next) => {
       return res.status(400).json({ error: 'amount is required and must be > 0' });
     }
 
-    const order = await razorpay.orders.create({
-      amount: Math.round(amount * 100), // paise
-      currency: 'INR',
-      receipt: `rcpt_${Date.now()}`,
-      payment_capture: 1,
-    });
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({ error: 'Payment gateway not configured' });
+    }
+
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount: Math.round(amount * 100), // paise
+        currency: 'INR',
+        receipt: `rcpt_${Date.now()}`,
+        payment_capture: 1,
+      });
+    } catch (razorpayErr) {
+      // Razorpay SDK v2.x can throw internally malformed errors — normalize them
+      const message = razorpayErr?.error?.description
+        || razorpayErr?.message
+        || 'Payment gateway error';
+      const status = razorpayErr?.statusCode || razorpayErr?.error?.http_status_code || 502;
+      return res.status(status).json({ error: message });
+    }
 
     res.json({
       razorpay_order_id: order.id,

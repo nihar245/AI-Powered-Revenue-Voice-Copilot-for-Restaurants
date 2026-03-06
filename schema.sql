@@ -218,7 +218,18 @@ CREATE TABLE order_items (
     revenue             NUMERIC(10,2) NOT NULL,
     food_cost           NUMERIC(10,2) NOT NULL,
     gst_amt             NUMERIC(10,2) DEFAULT 0,
-    special_instructions TEXT
+    special_instructions TEXT,
+    is_upsell           BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE IF NOT EXISTS upsell_events (
+    event_id            SERIAL PRIMARY KEY,
+    order_id            INT REFERENCES orders(order_id),
+    item_id             INT REFERENCES menu_items(item_id),
+    variant_id          INT REFERENCES menu_variants(variant_id),
+    trigger_item_name   VARCHAR(150),
+    revenue             NUMERIC(10,2),
+    created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE order_addons (
