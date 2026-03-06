@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic-settings==2.7.0
+
+# Database
+asyncpg==0.30.0
+
+# Gemini — single SDK for ALL AI: Live API (voice) + generate_content (JSON extraction)
+google-genai>=1.0.0
+
+# Audio conversion: browser WebM/Opus → raw PCM 16 kHz mono (bundles a static ffmpeg binary)
+imageio-ffmpeg>=0.4.0
