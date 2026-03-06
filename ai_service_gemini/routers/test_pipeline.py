@@ -1,0 +1,576 @@
+"""
+Diagnostic / test endpoints — with live DB support.
+
+Architecture: every voice request goes through the full Gemini Live pipeline
+(audio-in → audio-out + transcripts → structured JSON extraction → cart update)
+and uses the real database for menu, tables, and order creation.
+
+Endpoints
+─────────
+GET  /test/ping          → liveness probe
+GET  /test/services      → service status + model info
+GET  /test/menu          → active menu from DB (or fallback)
+GET  /test/tables        → active tables from DB (or demo list)
+POST /test/voice-chat    → stateful voice turn (used by VoiceLab UI)
+GET  /test/voicelab      → VoiceLab HTML UI
+"""
+
+import logging
+import os
+import time
+import uuid
+
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
+
+from config import settings
+from models.schemas import DialogueState, Intent, Language
+from services.audio.live import voice_turn
+from services.database.connection import get_pool
+from services.database.queries import (
+    fetch_active_menu,
+    fetch_tables,
+    generate_order_number,
+    get_default_table_id,
+    get_default_terminal_id,
+    get_open_session_id,
+    insert_order,
+)
+from services.dialogue.order_builder import format_cart_total, get_cart_total
+from services.dialogue.session_store import get_session, reset_session, update_session
+from services.dialogue.upsell import (
+    build_order_summary,
+    detect_active_combos,
+    get_upsell_suggestion,
+)
+from services.llm.extract import extract_cart_update
+from services.prompts import build_live_system_instruction
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/test", tags=["diagnostics"])
+
+# ─── Fallbacks (used when DB is unavailable) ──────────────────────────────────
+_FALLBACK_MENU = [
+    {"product_id": "1",  "name": "Paneer Tikka",   "price": 250.0, "tax": 5.0, "category_name": "Starters"},
+    {"product_id": "2",  "name": "Masala Chai",     "price": 50.0,  "tax": 0.0, "category_name": "Beverages"},
+    {"product_id": "3",  "name": "Veg Biryani",     "price": 180.0, "tax": 5.0, "category_name": "Main Course"},
+    {"product_id": "4",  "name": "Garlic Naan",     "price": 40.0,  "tax": 5.0, "category_name": "Breads"},
+    {"product_id": "5",  "name": "Mango Lassi",     "price": 80.0,  "tax": 0.0, "category_name": "Beverages"},
+    {"product_id": "6",  "name": "Dal Makhani",     "price": 160.0, "tax": 5.0, "category_name": "Main Course"},
+    {"product_id": "7",  "name": "Gulab Jamun",     "price": 60.0,  "tax": 5.0, "category_name": "Desserts"},
+    {"product_id": "8",  "name": "Aloo Paratha",    "price": 90.0,  "tax": 5.0, "category_name": "Breads"},
+    {"product_id": "9",  "name": "Cold Coffee",     "price": 110.0, "tax": 0.0, "category_name": "Beverages"},
+    {"product_id": "10", "name": "Butter Chicken",  "price": 280.0, "tax": 5.0, "category_name": "Main Course"},
+]
+_FALLBACK_TABLES = [
+    {"table_id": "demo-t1", "table_number": "T-1", "seats": 4, "status": "available"},
+    {"table_id": "demo-t2", "table_number": "T-2", "seats": 4, "status": "available"},
+    {"table_id": "demo-t3", "table_number": "T-3", "seats": 2, "status": "available"},
+]
+
+_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+
+def _get_menu(request: Request) -> list[dict]:
+    """Return cached DB menu, falling back to hardcoded list if DB is down."""
+    menu = getattr(request.app.state, "menu", [])
+    return menu if menu else _FALLBACK_MENU
+
+
+def _get_tables(request: Request) -> list[dict]:
+    tables = getattr(request.app.state, "tables", [])
+    return tables if tables else _FALLBACK_TABLES
+
+
+# ─── /test/ping ───────────────────────────────────────────────────────────────
+
+@router.get("/ping")
+async def ping():
+    return {"status": "ok", "message": "ai_service_gemini is running (Gemini Live API)"}
+
+
+# ─── /test/services ───────────────────────────────────────────────────────────
+
+@router.get("/services")
+async def service_status(request: Request):
+    menu   = _get_menu(request)
+    tables = _get_tables(request)
+    db_ok  = get_pool() is not None
+    return {
+        "pipeline": {
+            "audio_model":  settings.gemini_audio_model,
+            "text_model":   settings.gemini_text_model,
+            "api_key_set":  bool(settings.gemini_api_key),
+            "description":  "Gemini Live (audio-in/audio-out) + fast text extraction",
+        },
+        "database": {
+            "connected":    db_ok,
+            "menu_items":   len(menu),
+            "tables":       len(tables),
+            "source":       "database" if db_ok else "fallback (DB unavailable)",
+        },
+    }
+
+
+# ─── /test/menu ───────────────────────────────────────────────────────────────
+
+@router.get("/menu")
+async def get_menu(request: Request):
+    """Active menu from DB (or fallback list). Grouped by category."""
+    menu = _get_menu(request)
+    # Group by category
+    grouped: dict[str, list] = {}
+    for item in menu:
+        cat = item.get("category_name") or item.get("category") or "Other"
+        grouped.setdefault(cat, []).append({
+            "product_id": item["product_id"],
+            "name":       item["name"],
+            "price":      float(item["price"]),
+            "tax":        float(item.get("tax", 0)),
+        })
+    return {
+        "source":     "database" if get_pool() else "fallback",
+        "item_count": len(menu),
+        "categories": [
+            {"name": cat, "items": items}
+            for cat, items in grouped.items()
+        ],
+    }
+
+
+# ─── /test/tables ─────────────────────────────────────────────────────────────
+
+@router.get("/tables")
+async def get_tables(request: Request):
+    """Active tables from DB (or demo table list)."""
+    tables = _get_tables(request)
+    return {
+        "source": "database" if get_pool() else "fallback",
+        "tables": tables,
+    }
+
+
+# ─── /test/voice-chat ─────────────────────────────────────────────────────────
+
+@router.post("/voice-chat")
+async def voice_chat(
+    request:    Request,
+    audio:      UploadFile = File(...),
+    session_id: str        = Form(default=""),
+    language:   str        = Form(default="en"),
+    table_id:   str        = Form(default=""),
+):
+    """
+    Full stateful voice turn for VoiceLab.
+
+    1. Gemini Live: audio → audio (WAV) + transcripts
+    2. Gemini text: transcript → intent + cart items
+    3. Apply cart mutation (add / remove / cancel / confirm)
+    4. On confirm_order: write real order to DB (if connected)
+    5. Return VoiceLab-compatible JSON
+    """
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    menu      = _get_menu(request)
+    session   = get_session(session_id, table_id or "demo-table")
+    cart: list[dict] = list(session["cart"])
+    turn_num  = session.get("turn", 0) + 1
+
+    if table_id:
+        session["table_id"] = table_id
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(400, "Empty audio file")
+
+    # Pull per-session upsell/clarification state
+    upsells_shown   = list(session.get("upsells_shown", []))
+    combos_shown    = list(session.get("combos_shown", []))
+    pending_clarif  = session.get("pending_clarification")
+    pending_upsell  = session.get("pending_upsell")
+
+    # ── Step 1: Gemini Live voice turn ────────────────────────────────────────
+    system_instr = build_live_system_instruction(
+        menu_items             = menu,
+        cart                   = cart,
+        upsell_suggestion      = session.get("pending_upsell"),
+        pending_clarification  = pending_clarif,
+    )
+    t0 = time.perf_counter()
+    turn = await voice_turn(audio_bytes, system_instr)
+    live_ms = round((time.perf_counter() - t0) * 1000)
+
+    transcript    = turn["transcript"]
+    response_text = turn["response_text"]
+    detected_lang = turn["language"]
+    audio_b64     = turn["audio_b64"]
+
+    # ── Step 2: Extract structured update from transcript ─────────────────────
+    t1 = time.perf_counter()
+    update_data  = await extract_cart_update(transcript, menu, response_text=response_text)
+    extract_ms   = round((time.perf_counter() - t1) * 1000)
+
+    intent_str            = update_data.get("intent", "unknown")
+    items_to_act          = update_data.get("items", [])
+    clarification_needed  = update_data.get("clarification_needed", False)
+    clarification_question = update_data.get("clarification_question")
+
+    try:
+        intent = Intent(intent_str)
+    except ValueError:
+        intent = Intent.UNKNOWN
+
+    # ── Step 3: Apply cart mutations ──────────────────────────────────────────
+    cart_events:  list[str]      = []
+    order_number: str | None     = None
+    new_clarification: str | None = None
+    new_pending_upsell: str | None = pending_upsell  # carry forward unless resolved
+
+    if intent == Intent.ADD_ITEM:
+        for item_data in items_to_act:
+            pid      = str(item_data.get("product_id", ""))
+            qty      = int(item_data.get("qty", 1))
+            name     = item_data.get("name", "")
+            mods     = item_data.get("modifiers") or {}
+            ambig    = item_data.get("ambiguous", False)
+
+            if ambig or not pid:
+                # Don't add to cart yet; ask for clarification
+                new_clarification = clarification_question or f"Which {name} did you mean?"
+                session["pending_ambiguous_item"] = item_data
+                cart_events.append(f"? Clarifying: {name}")
+                continue
+
+            existing = next((c for c in cart if c["product_id"] == pid), None)
+            if existing:
+                existing["quantity"] += qty
+                # Merge modifiers if present
+                if mods:
+                    existing.setdefault("modifiers", {})
+                    existing["modifiers"].update({k: v for k, v in mods.items() if v})
+                cart_events.append(f"+{qty}× {name}")
+            else:
+                mi = next((m for m in menu if str(m["product_id"]) == pid), None)
+                if mi:
+                    cart.append({
+                        "product_id":   pid,
+                        "name":         mi["name"],
+                        "quantity":     qty,
+                        "unit_price":   float(mi["price"]),
+                        "tax_rate":     float(mi.get("tax", 5.0)),
+                        "variant_id":   None,
+                        "variant_name": None,
+                        "notes":        mods.get("notes"),
+                        "modifiers":    {k: v for k, v in mods.items() if v} or None,
+                    })
+                    cart_events.append(f"+{qty}× {mi['name']}")
+
+        # Trigger upsell suggestion after adding items
+        upsell_text = get_upsell_suggestion(cart, upsells_shown + combos_shown, menu)
+        if upsell_text:
+            new_pending_upsell = upsell_text
+
+    elif intent == Intent.MODIFY_ITEM:
+        for item_data in items_to_act:
+            pid  = str(item_data.get("product_id", ""))
+            name = item_data.get("name", "")
+            mods = item_data.get("modifiers") or {}
+            target = next((c for c in cart if c["product_id"] == pid), None)
+            if target and mods:
+                target.setdefault("modifiers", {})
+                target["modifiers"].update({k: v for k, v in mods.items() if v})
+                target["notes"] = mods.get("notes", target.get("notes"))
+                mod_desc = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
+                cart_events.append(f"✏ {name} modified ({mod_desc})")
+            else:
+                cart_events.append(f"? {name} not in cart to modify")
+
+    elif intent == Intent.REMOVE_ITEM:
+        for item_data in items_to_act:
+            pid  = str(item_data.get("product_id", ""))
+            name = item_data.get("name", "")
+            before = len(cart)
+            cart = [c for c in cart if c["product_id"] != pid]
+            if len(cart) < before:
+                cart_events.append(f"−{name} removed")
+
+    elif intent == Intent.UPSELL_RESPONSE:
+        # Customer said "yes" to a pending upsell
+        if pending_upsell:
+            # Parse item name out of suggestion text
+            suggested_name = _extract_item_name_from_upsell(pending_upsell, menu)
+            if suggested_name:
+                mi = next(
+                    (m for m in menu if m["name"].lower() == suggested_name.lower()),
+                    None,
+                )
+                if mi and not any(c["product_id"] == str(mi["product_id"]) for c in cart):
+                    cart.append({
+                        "product_id":   str(mi["product_id"]),
+                        "name":         mi["name"],
+                        "quantity":     1,
+                        "unit_price":   float(mi["price"]),
+                        "tax_rate":     float(mi.get("tax", 5.0)),
+                        "variant_id":   None,
+                        "variant_name": None,
+                        "notes":        None,
+                        "modifiers":    None,
+                    })
+                    cart_events.append(f"+1× {mi['name']} (upsell accepted)")
+            upsells_shown.append(pending_upsell)
+            new_pending_upsell = None
+
+    elif intent == Intent.CLARIFY:
+        # Customer is answering a previous clarification question
+        new_clarification = None
+        session["pending_ambiguous_item"] = None
+
+    elif intent == Intent.CANCEL_ORDER:
+        cart = []
+        new_pending_upsell = None
+        new_clarification  = None
+        cart_events.append("Order cancelled")
+
+    elif intent == Intent.CONFIRM_ORDER:
+        if cart:
+            subtotal, tax_total, grand_total = get_cart_total(cart)
+            order_summary = build_order_summary(cart, subtotal, tax_total, grand_total)
+            try:
+                await _write_order_to_db(
+                    session_data=session,
+                    table_id=table_id,
+                    cart=cart,
+                    subtotal=subtotal,
+                    tax_total=tax_total,
+                    grand_total=grand_total,
+                    cart_events=cart_events,
+                )
+                order_number = next(
+                    (e.split("#")[1].split(" ")[0] for e in cart_events if "#" in e),
+                    None,
+                )
+            except Exception as exc:
+                logger.error("Order write failed: %s", exc)
+                cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (DB write failed)")
+            cart = []
+            new_pending_upsell = None
+            new_clarification  = None
+
+    # Update clarification state: set new one if needed, or clear if answered
+    if intent not in (Intent.ADD_ITEM, Intent.MODIFY_ITEM):
+        # Other intents count as implicitly resolving pending clarification
+        if intent not in (Intent.CLARIFY, Intent.UNKNOWN, Intent.GREETING):
+            new_clarification = None
+
+    # ── Step 4: Persist session ───────────────────────────────────────────────
+    if new_pending_upsell and new_pending_upsell not in upsells_shown:
+        upsells_shown.append(new_pending_upsell)
+
+    update_session(session_id, {
+        "cart":                   cart,
+        "language":               detected_lang,
+        "last_intent":            intent.value,
+        "last_response":          response_text,
+        "turn":                   turn_num,
+        "table_id":               table_id or session.get("table_id", ""),
+        "pending_clarification":  new_clarification,
+        "pending_upsell":         new_pending_upsell,
+        "upsells_shown":          upsells_shown,
+        "combos_shown":           combos_shown,
+    })
+
+    # ── Step 5: Build response ────────────────────────────────────────────────
+    _, _, total   = get_cart_total(cart)
+    active_combos = detect_active_combos(cart)
+
+    # Build upsell chips for the UI — chip per suggestion not yet shown
+    upsell_chips: list[dict] = []
+    if new_pending_upsell:
+        item_name = _extract_item_name_from_upsell(new_pending_upsell, menu)
+        if item_name:
+            mi = next((m for m in menu if m["name"].lower() == item_name.lower()), None)
+            if mi:
+                upsell_chips.append({
+                    "label":      f"+ Add {mi['name']} ₹{mi['price']:.0f}",
+                    "item_name":  mi["name"],
+                    "product_id": str(mi["product_id"]),
+                    "price":      float(mi["price"]),
+                    "suggestion": new_pending_upsell,
+                })
+
+    return {
+        "session_id":            session_id,
+        "turn":                  turn_num,
+        "transcript":            transcript,
+        "clean_text":            transcript,
+        "language":              detected_lang,
+        "intent":                intent.value,
+        "response_text":         response_text,
+        "audio_base64":          audio_b64,
+        "audio_mime":            "audio/wav",
+        "cart":                  cart,
+        "cart_total":            f"₹{total:.0f}",
+        "cart_events":           cart_events,
+        "order_number":          order_number,
+        "upsell_suggestion":     new_pending_upsell,
+        "upsell_chips":          upsell_chips,
+        "pending_clarification": new_clarification,
+        "active_combos":         active_combos,
+        "timings_ms": {
+            "gemini_live_ms": live_ms,
+            "extract_ms":     extract_ms,
+        },
+    }
+
+
+def _extract_item_name_from_upsell(suggestion_text: str, menu: list[dict]) -> str | None:
+    """
+    Pull the item name out of a suggestion string like
+    'Would you like to add Mango Lassi? It pairs great with Veg Biryani!'
+    or 'Add Garlic Naan to complete the Biryani Meal and save ₹25!'
+    """
+    text_lower = suggestion_text.lower()
+    for m in menu:
+        if m["name"].lower() in text_lower:
+            # Make sure it's a suggestion target (appears before "pairs" or right after "add")
+            return m["name"]
+    return None
+
+
+# ─── /test/add-item (quick-add via upsell chip) ──────────────────────────────
+
+@router.post("/add-item")
+async def add_item_direct(
+    request:    Request,
+    session_id: str = Form(...),
+    product_id: str = Form(...),
+    item_name:  str = Form(...),
+    quantity:   int = Form(default=1),
+):
+    """
+    Directly add an item to the cart without a voice turn.
+    Used by upsell chips in the VoiceLab UI.
+    """
+    menu    = _get_menu(request)
+    session = get_session(session_id)
+    cart    = list(session["cart"])
+
+    mi = next((m for m in menu if str(m["product_id"]) == product_id), None)
+    if not mi:
+        raise HTTPException(404, f"product_id {product_id!r} not in menu")
+
+    existing = next((c for c in cart if c["product_id"] == product_id), None)
+    if existing:
+        existing["quantity"] += quantity
+    else:
+        cart.append({
+            "product_id":   product_id,
+            "name":         mi["name"],
+            "quantity":     quantity,
+            "unit_price":   float(mi["price"]),
+            "tax_rate":     float(mi.get("tax", 5.0)),
+            "variant_id":   None,
+            "variant_name": None,
+            "notes":        None,
+            "modifiers":    None,
+        })
+
+    upsells_shown = list(session.get("upsells_shown", []))
+    upsell_text   = get_upsell_suggestion(cart, upsells_shown, menu)
+    if upsell_text:
+        upsells_shown.append(upsell_text)
+
+    update_session(session_id, {
+        "cart":          cart,
+        "upsells_shown": upsells_shown,
+        "pending_upsell": upsell_text,
+    })
+
+    _, _, total   = get_cart_total(cart)
+    active_combos = detect_active_combos(cart)
+
+    upsell_chips: list[dict] = []
+    if upsell_text:
+        name = _extract_item_name_from_upsell(upsell_text, menu)
+        if name:
+            m2 = next((m for m in menu if m["name"].lower() == name.lower()), None)
+            if m2:
+                upsell_chips.append({
+                    "label":      f"Add {m2['name']} ₹{m2['price']:.0f}",
+                    "item_name":  m2["name"],
+                    "product_id": str(m2["product_id"]),
+                    "price":      float(m2["price"]),
+                    "suggestion": upsell_text,
+                })
+
+    return {
+        "cart":                  cart,
+        "cart_total":            f"₹{total:.0f}",
+        "cart_events":           [f"+{quantity}× {mi['name']}"],
+        "upsell_chips":          upsell_chips,
+        "active_combos":         active_combos,
+        "pending_clarification": session.get("pending_clarification"),
+    }
+
+
+# ─── /test/voicelab ──────────────────────────────────────────────────────────
+
+@router.get("/voicelab", response_class=HTMLResponse)
+async def voicelab():
+    html_path = os.path.join(os.path.dirname(__file__), "..", "static", "voicelab.html")
+    with open(html_path, encoding="utf-8") as f:
+        return HTMLResponse(f.read())
+
+
+# ─── Internal: DB order writer ───────────────────────────────────────────────
+
+async def _write_order_to_db(
+    session_data: dict,
+    table_id: str,
+    cart: list[dict],
+    subtotal: float,
+    tax_total: float,
+    grand_total: float,
+    cart_events: list[str],
+) -> None:
+    """
+    Attempt to write a confirmed order to the database.
+    Appends a status string to cart_events.
+    Falls back to a demo message if DB is unavailable.
+    """
+    pool = get_pool()
+    if pool is None:
+        cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (demo mode, no DB)")
+        return
+
+    # Resolve IDs
+    tid = table_id or session_data.get("table_id") or await get_default_table_id()
+    pos_session_id = await get_open_session_id(_SYSTEM_USER_ID)
+    terminal_id    = await get_default_terminal_id()
+
+    if not (tid and pos_session_id and terminal_id):
+        missing = []
+        if not tid:            missing.append("table_id")
+        if not pos_session_id: missing.append("pos_session")
+        if not terminal_id:    missing.append("terminal_id")
+        cart_events.append(
+            f"Order confirmed — ₹{grand_total:.0f} "
+            f"(missing: {', '.join(missing)} — check DB setup)"
+        )
+        return
+
+    order_num = await generate_order_number()
+    await insert_order(
+        order_number=order_num,
+        table_id=tid,
+        session_id=pos_session_id,
+        terminal_id=terminal_id,
+        user_id=_SYSTEM_USER_ID,
+        cart=cart,
+        subtotal=subtotal,
+        tax=tax_total,
+        total=grand_total,
+    )
+    cart_events.append(f"✅ Order #{order_num} placed — ₹{grand_total:.0f}")
+    logger.info("Order %s written to DB (table=%s, total=%.0f)", order_num, tid, grand_total)
