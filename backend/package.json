@@ -1,0 +1,21 @@
+{
+  "name": "petpooja-backend",
+  "version": "1.0.0",
+  "description": "PetPooja AI-Powered Revenue & Voice Copilot — Node.js Backend",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "pg": "^8.13.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "helmet": "^8.0.0",
+    "express-rate-limit": "^7.4.1",
+    "axios": "^1.7.7"
+  }
+}

@@ -1,0 +1,176 @@
+version: "2"
+type: frontend
+tech_stack:
+  - language: JavaScript (JSX)
+  - framework: React 18 + Vite 5
+  - ui_library: TailwindCSS 3
+  - other: React Router v6, Recharts, Lucide React, Playwright
+
+routes:
+  - path: /
+    file: src/pages/Landing.jsx
+    auth_required: false
+    description: Public landing page with hero, problem, solution and CTA sections
+  - path: /login
+    file: src/pages/Login.jsx
+    auth_required: false
+    description: Login page with email/password form, redirects to /dashboard on submit
+  - path: /signup
+    file: src/pages/Signup.jsx
+    auth_required: false
+    description: Signup page with name/email/password form, redirects to /dashboard on submit
+  - path: /dashboard
+    file: src/pages/Dashboard.jsx
+    auth_required: false
+    description: Main dashboard with KPI cards and Recharts line/bar/area charts
+  - path: /dashboard/orders
+    file: src/pages/Orders.jsx
+    auth_required: false
+    description: Orders table with click-to-expand kitchen ticket side panel and AI upsell card
+  - path: /dashboard/voice
+    file: src/pages/VoiceOrder.jsx
+    auth_required: false
+    description: Simulated voice ordering page with mic button, transcript, item detection, upsell
+  - path: /dashboard/analytics
+    file: src/pages/Analytics.jsx
+    auth_required: false
+    description: Analytics page with scatter profitability chart, combo recommendations table, underperforming items
+
+features:
+  - name: Landing Page
+    description: Public marketing page with hero animation, problem cards, solution cards, CTA
+    files:
+      - src/pages/Landing.jsx
+      - src/components/HeroAnimation.jsx
+    entry_route: /
+    user_interactions:
+      - View hero section with title and subtitle
+      - Click Login button to navigate to /login
+      - Click Sign Up button to navigate to /signup
+      - Scroll down to see Problem, Solution, and CTA sections
+      - Click Try Demo CTA button
+    api_calls: []
+    auth_required: false
+
+  - name: User Login
+    description: UI-only login form accepting any email and password, redirects to dashboard
+    files:
+      - src/pages/Login.jsx
+    entry_route: /login
+    user_interactions:
+      - Fill email input field
+      - Fill password input field
+      - Toggle password visibility
+      - Click Sign In button to submit
+      - See loading spinner during redirect
+      - Get redirected to /dashboard after 800ms
+    api_calls: []
+    auth_required: false
+
+  - name: User Signup
+    description: UI-only signup form, redirects to dashboard after 900ms
+    files:
+      - src/pages/Signup.jsx
+    entry_route: /signup
+    user_interactions:
+      - Fill name/restaurant input
+      - Fill email input
+      - Fill password input
+      - Toggle password visibility
+      - Click Create Account to submit
+      - Get redirected to /dashboard after 900ms
+    api_calls: []
+    auth_required: false
+
+  - name: Dashboard KPIs and Charts
+    description: Shows mocked KPI cards and Recharts charts for orders, revenue, top items
+    files:
+      - src/pages/Dashboard.jsx
+      - src/data/mockData.js
+    entry_route: /dashboard
+    user_interactions:
+      - View 4 KPI cards (Total Orders, Revenue, Avg Order Value, Top Selling Item)
+      - View Orders Over Time area chart
+      - View Top Selling Items horizontal bar chart
+      - View Weekly Revenue bar chart
+    api_calls: []
+    auth_required: false
+
+  - name: Orders Management
+    description: POS-style orders table with filterable status, side panel kitchen ticket
+    files:
+      - src/pages/Orders.jsx
+      - src/components/RecommendationCard.jsx
+      - src/data/mockData.js
+    entry_route: /dashboard/orders
+    user_interactions:
+      - View orders table with Order ID, Items, Price, Status, Source columns
+      - Click status filter buttons (All, Received, Preparing, Ready, Served)
+      - Click an order row to open Kitchen Order Ticket side panel
+      - View AI Upsell Recommendation card
+      - Click Add To Order button on upsell card
+      - Click X to close the side panel
+    api_calls: []
+    auth_required: false
+
+  - name: Voice Ordering
+    description: Simulated voice ordering with mic button, transcript typing animation, item detection and upsell
+    files:
+      - src/pages/VoiceOrder.jsx
+    entry_route: /dashboard/voice
+    user_interactions:
+      - Click microphone button to start voice simulation
+      - Watch transcript animate with demo text in Hindi
+      - See detected items (Paneer Pizza, Coke) appear
+      - See AI upsell suggestion (Garlic Bread)
+      - Click Yes to add upsell item or Skip
+      - Click Confirm Order button
+      - See success confirmation
+      - Click New Order to reset
+    api_calls: []
+    auth_required: false
+
+  - name: Analytics Dashboard
+    description: Menu profitability scatter chart, combo recommendations table, underperforming items table
+    files:
+      - src/pages/Analytics.jsx
+      - src/data/mockData.js
+    entry_route: /dashboard/analytics
+    user_interactions:
+      - View Menu Profitability scatter matrix (Margin vs Popularity)
+      - Hover scatter dots to see tooltip with item name, popularity, margin, revenue
+      - View Combo Recommendations table with confidence bars
+      - View Underperforming Items table with action badges
+      - View 4 summary stat cards at bottom
+    api_calls: []
+    auth_required: false
+
+  - name: Navigation
+    description: Sidebar navigation with links to all dashboard sections, logout button
+    files:
+      - src/components/Navbar.jsx
+      - src/components/AppLayout.jsx
+    entry_route: /dashboard
+    user_interactions:
+      - Click Dashboard link
+      - Click Orders link
+      - Click Voice Ordering link
+      - Click Analytics link
+      - Click Logout to return to landing page
+      - On mobile, toggle hamburger menu
+    api_calls: []
+    auth_required: false
+
+known_limitations:
+  - issue: Auth is UI-only with no real backend validation
+    location: src/pages/Login.jsx, src/pages/Signup.jsx
+    impact: Any email/password combination is accepted
+  - issue: Voice ordering uses simulated demo flow, not real speech recognition
+    location: src/pages/VoiceOrder.jsx
+    impact: Speech-to-text is hardcoded demo data
+  - issue: All data is mocked, no API calls
+    location: src/data/mockData.js
+    impact: No persistence of orders or state
+  - issue: SPA routing requires server-side fallback to index.html for direct URL access
+    location: vite.config.js
+    impact: Direct navigation to sub-routes returns 404 on static hosts without config

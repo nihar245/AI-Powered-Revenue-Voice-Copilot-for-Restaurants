@@ -1,0 +1,287 @@
+{
+  "version": "2",
+  "type": "frontend",
+  "projectName": "ai-restaurant-copilot",
+  "tests": [
+    {
+      "id": "TC-001",
+      "title": "Landing page loads with hero content",
+      "description": "Verify the public landing page renders correctly with hero heading, subtitle, and CTA buttons",
+      "route": "/",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /",
+        "Verify page title is 'AI Restaurant Copilot'",
+        "Verify h1 contains 'AI Revenue'",
+        "Verify subtitle paragraph is visible",
+        "Verify Login button is visible",
+        "Verify Sign Up button is visible"
+      ],
+      "expected": "Landing page renders with all hero content visible"
+    },
+    {
+      "id": "TC-002",
+      "title": "Login page renders",
+      "description": "Verify the login page renders email, password fields and submit button",
+      "route": "/login",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /login",
+        "Verify heading 'Welcome back' is visible",
+        "Verify email input is visible",
+        "Verify password input is visible",
+        "Verify Sign In button is visible"
+      ],
+      "expected": "Login page renders with form elements"
+    },
+    {
+      "id": "TC-003",
+      "title": "Login redirects to dashboard",
+      "description": "Submitting any email and password redirects to /dashboard",
+      "route": "/login",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /login",
+        "Fill email field with test@demo.com",
+        "Fill password field with password123",
+        "Click Sign In button",
+        "Wait for navigation",
+        "Verify URL is /dashboard"
+      ],
+      "expected": "User is redirected to /dashboard after login"
+    },
+    {
+      "id": "TC-004",
+      "title": "Signup page renders",
+      "description": "Verify the signup page renders with name, email, password fields",
+      "route": "/signup",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /signup",
+        "Verify heading 'Create your account' is visible",
+        "Verify name input is visible",
+        "Verify email input is visible",
+        "Verify password input is visible",
+        "Verify Create Account button is visible"
+      ],
+      "expected": "Signup page renders with all form fields"
+    },
+    {
+      "id": "TC-005",
+      "title": "Signup redirects to dashboard",
+      "description": "Submitting signup form redirects to /dashboard",
+      "route": "/signup",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /signup",
+        "Fill name field with Spice Garden",
+        "Fill email field with chef@spicegarden.com",
+        "Fill password field with secure123",
+        "Click Create Account button",
+        "Wait for navigation",
+        "Verify URL is /dashboard"
+      ],
+      "expected": "User is redirected to /dashboard after signup"
+    },
+    {
+      "id": "TC-006",
+      "title": "Dashboard renders KPI cards",
+      "description": "Verify dashboard shows all 4 KPI metric cards",
+      "route": "/dashboard",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard",
+        "Verify 'Total Orders Today' card is visible",
+        "Verify '147' value is visible",
+        "Verify 'Total Revenue' card is visible",
+        "Verify '₹58,420' value is visible",
+        "Verify 'Avg Order Value' card is visible",
+        "Verify 'Top Selling Item' card is visible",
+        "Verify 'Paneer Pizza' is visible"
+      ],
+      "expected": "All 4 KPI cards with correct data are visible"
+    },
+    {
+      "id": "TC-007",
+      "title": "Dashboard chart: Orders Over Time renders",
+      "description": "Verify the line/area chart is rendered with axis labels",
+      "route": "/dashboard",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard",
+        "Verify 'Orders Over Time' heading is visible",
+        "Verify chart area is rendered (SVG present)"
+      ],
+      "expected": "Orders Over Time chart renders with time axis labels"
+    },
+    {
+      "id": "TC-008",
+      "title": "Dashboard sidebar navigation visible",
+      "description": "Verify the sidebar shows all navigation links",
+      "route": "/dashboard",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard",
+        "Verify 'Dashboard' nav link is visible and active",
+        "Verify 'Orders' nav link is visible",
+        "Verify 'Voice Ordering' nav link is visible",
+        "Verify 'Analytics' nav link is visible"
+      ],
+      "expected": "All sidebar navigation links visible"
+    },
+    {
+      "id": "TC-009",
+      "title": "Orders page direct navigation renders table",
+      "description": "Directly navigating to /dashboard/orders renders the order table",
+      "route": "/dashboard/orders",
+      "auth_required": false,
+      "steps": [
+        "Navigate directly to /dashboard/orders",
+        "Verify 'Orders' heading is visible",
+        "Verify table header 'Order ID' is visible",
+        "Verify order '#101' is visible in table",
+        "Verify order '#104' is visible in table",
+        "Verify status filter buttons are visible"
+      ],
+      "expected": "Orders table renders with data on direct URL navigation"
+    },
+    {
+      "id": "TC-010",
+      "title": "Orders page: clicking order opens kitchen ticket",
+      "description": "Clicking an order row shows kitchen ticket side panel with upsell",
+      "route": "/dashboard/orders",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard/orders",
+        "Click the row containing '#101'",
+        "Verify 'Kitchen Order Ticket' panel appears",
+        "Verify order items are shown",
+        "Verify total price is shown",
+        "Verify 'AI Upsell Recommendation' card is visible"
+      ],
+      "expected": "Kitchen ticket side panel appears with order details and AI upsell"
+    },
+    {
+      "id": "TC-011",
+      "title": "Orders page: status filter works",
+      "description": "Clicking status filter buttons filters the orders table",
+      "route": "/dashboard/orders",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard/orders",
+        "Click 'Preparing' filter button",
+        "Verify only Preparing orders are visible",
+        "Click 'All' filter button",
+        "Verify all orders are visible again"
+      ],
+      "expected": "Status filter correctly shows/hides orders by status"
+    },
+    {
+      "id": "TC-012",
+      "title": "Voice Ordering page direct navigation renders",
+      "description": "Directly navigating to /dashboard/voice renders the voice ordering UI",
+      "route": "/dashboard/voice",
+      "auth_required": false,
+      "steps": [
+        "Navigate directly to /dashboard/voice",
+        "Verify 'Voice Ordering' heading is visible",
+        "Verify microphone button area is visible",
+        "Verify 'Press to start voice ordering' text is visible",
+        "Verify 'Order Summary' panel is visible"
+      ],
+      "expected": "Voice ordering page renders on direct navigation"
+    },
+    {
+      "id": "TC-013",
+      "title": "Voice ordering demo flow works",
+      "description": "Pressing the mic button triggers demo flow with transcript and items",
+      "route": "/dashboard/voice",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard/voice",
+        "Click the microphone button",
+        "Verify listening state is active (text changes)",
+        "Wait 4 seconds for demo to complete",
+        "Verify transcript box shows Hindi text",
+        "Verify 'Detected Items' section appears",
+        "Verify 'Paneer Pizza' is in detected items",
+        "Verify 'Coke' is in detected items"
+      ],
+      "expected": "Demo voice flow completes showing detected items"
+    },
+    {
+      "id": "TC-014",
+      "title": "Analytics page direct navigation renders",
+      "description": "Directly navigating to /dashboard/analytics renders all charts and tables",
+      "route": "/dashboard/analytics",
+      "auth_required": false,
+      "steps": [
+        "Navigate directly to /dashboard/analytics",
+        "Verify 'Analytics' heading is visible",
+        "Verify 'Menu Profitability Matrix' heading is visible",
+        "Verify 'Combo Recommendations' heading is visible",
+        "Verify 'Underperforming Items' heading is visible"
+      ],
+      "expected": "Analytics page renders on direct navigation"
+    },
+    {
+      "id": "TC-015",
+      "title": "Analytics: scatter chart renders with data",
+      "description": "Verify the profitability scatter chart renders with SVG and dot elements",
+      "route": "/dashboard/analytics",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard/analytics",
+        "Verify scatter chart SVG is present",
+        "Verify combo table shows 'Paneer Pizza' entry",
+        "Verify underperforming table shows 'Paneer Pasta'"
+      ],
+      "expected": "Scatter chart and data tables render correctly"
+    },
+    {
+      "id": "TC-016",
+      "title": "Navbar: in-app navigation between all sections",
+      "description": "Clicking sidebar nav links correctly navigates between sections",
+      "route": "/dashboard",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard",
+        "Click 'Orders' nav link",
+        "Verify URL is /dashboard/orders",
+        "Click 'Voice Ordering' nav link",
+        "Verify URL is /dashboard/voice",
+        "Click 'Analytics' nav link",
+        "Verify URL is /dashboard/analytics",
+        "Click 'Dashboard' nav link",
+        "Verify URL is /dashboard"
+      ],
+      "expected": "All sidebar nav links navigate to correct routes"
+    },
+    {
+      "id": "TC-017",
+      "title": "Logout button returns to landing page",
+      "description": "Clicking Logout navigates back to /",
+      "route": "/dashboard",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /dashboard",
+        "Click 'Logout' button",
+        "Verify URL is /"
+      ],
+      "expected": "Logout button navigates to landing page"
+    },
+    {
+      "id": "TC-018",
+      "title": "Unknown route redirects to landing",
+      "description": "Navigating to an unknown route redirects to /",
+      "route": "/unknown-page-xyz",
+      "auth_required": false,
+      "steps": [
+        "Navigate to /unknown-page-xyz",
+        "Verify redirect happens to /",
+        "Verify landing page hero is visible"
+      ],
+      "expected": "Unknown routes redirect to landing page"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5174",
+  "executionArgs": {
+    "projectName": "ai-restaurant-copilot",
+    "projectPath": "/Users/parthsrivastava/Desktop/POS_UI",
+    "testIds": [],
+    "additionalInstruction": "The project is a React SPA. Test all routes: /, /login, /signup, /dashboard, /dashboard/orders, /dashboard/voice, /dashboard/analytics. The server is running at http://127.0.0.1:5173. Check for any page-not-found issues on direct URL navigation and navigation via in-app links. Auth is UI-only: any email+password submits and redirects to /dashboard.",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-fRND7AO9XtbKLIsV0IZMzkwrcZC6UC3_wqti68AfWJZULgMDr8_EtwKX6yrLN3nmer_7RFIfyu9gBxzhuNG3dpN_B30-XMmrFVA7Gbk6mxXe99EKcA9_56mKXmIE1gyDCxs"
+    }
+  },
+  "serverPort": 64754
+}
