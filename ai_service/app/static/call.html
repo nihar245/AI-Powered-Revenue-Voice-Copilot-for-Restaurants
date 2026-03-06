@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Restaurant Voice Assistant</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a1a;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            padding: 18px 16px 10px;
+            background: linear-gradient(180deg, #1a1a3e, #0a0a1a);
+        }
+        .header h1 { font-size: 1.3em; }
+        .status {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-top: 6px;
+            transition: all 0.3s;
+        }
+        .s-idle { background: #222; color: #666; }
+        .s-on { background: #1b5e20; color: #4caf50; }
+        .s-busy { background: #e65100; color: #ff9800; animation: blink 1.2s infinite; }
+        .s-off { background: #b71c1c; color: #ef5350; }
+        @keyframes blink { 50% { opacity: .5; } }
+
+        .chat {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 250px;
+        }
+        .bubble {
+            max-width: 82%;
+            padding: 10px 14px;
+            border-radius: 18px;
+            font-size: 0.9em;
+            line-height: 1.45;
+            word-wrap: break-word;
+        }
+        .b-user { align-self: flex-end; background: #1a73e8; border-bottom-right-radius: 4px; }
+        .b-bot { align-self: flex-start; background: #2a2a3e; border-bottom-left-radius: 4px; }
+        .b-sys { align-self: center; color: #666; font-size: 0.78em; background: none; padding: 4px; }
+        .bubble .tm { font-size: 0.65em; color: rgba(255,255,255,0.4); margin-top: 3px; }
+
+        .order-box {
+            background: #111;
+            border-top: 1px solid #2a2a3e;
+            padding: 10px 14px;
+            display: none;
+        }
+        .order-box h4 { font-size: 0.7em; color: #666; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px; }
+        .oitem { display: flex; justify-content: space-between; font-size: 0.82em; padding: 2px 0; }
+        .ototal { display: flex; justify-content: space-between; font-weight: 700; color: #4caf50; border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; font-size: 0.9em; }
+
+        .bar {
+            display: flex;
+            gap: 8px;
+            padding: 12px;
+            background: #0d0d20;
+            align-items: center;
+        }
+        .btn {
+            border: none; border-radius: 50px; padding: 13px 20px;
+            font-size: 0.88em; font-weight: 600; cursor: pointer;
+            transition: all .15s; display: flex; align-items: center; gap: 5px;
+        }
+        .btn:disabled { opacity: .35; cursor: default; }
+        .b-green { background: #4caf50; color: #fff; flex: 1; justify-content: center; }
+        .b-red { background: #f44336; color: #fff; flex: 1; justify-content: center; }
+        .b-mic {
+            background: #1a73e8; color: #fff;
+            width: 56px; height: 56px; border-radius: 50%;
+            padding: 0; justify-content: center; font-size: 1.3em;
+        }
+        .b-mic.rec { background: #f44336; animation: blink 0.8s infinite; }
+
+        .inp-row {
+            display: flex; gap: 8px; padding: 0 12px 10px; background: #0d0d20;
+        }
+        .inp-row input {
+            flex: 1; background: #1a1a2e; border: 1px solid #333; border-radius: 22px;
+            padding: 10px 14px; color: #fff; font-size: 0.88em; outline: none;
+        }
+        .inp-row input:focus { border-color: #1a73e8; }
+        .inp-row input::placeholder { color: #555; }
+        .b-send {
+            background: #1a73e8; color: #fff; border: none; border-radius: 50%;
+            width: 40px; height: 40px; cursor: pointer; font-size: 1em;
+        }
+        .b-send:disabled { opacity: .35; }
+
+        .tip { text-align: center; padding: 6px; font-size: 0.7em; color: #444; background: #0d0d20; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🍽️ Voice Order Assistant</h1>
+    <div id="st" class="status s-idle">Tap Start Call</div>
+</div>
+
+<div class="chat" id="chat">
+    <div class="bubble b-sys">Press Start Call, then speak or type your order</div>
+</div>
+
+<div class="order-box" id="obox">
+    <h4>📋 Your Order</h4>
+    <div id="olist"></div>
+</div>
+
+<div class="bar">
+    <button class="btn b-green" id="btnStart" onclick="doStart()">📞 Start Call</button>
+    <button class="btn b-mic" id="btnMic" onclick="doMic()" disabled>🎤</button>
+    <button class="btn b-red" id="btnEnd" onclick="doEnd()" disabled>End</button>
+</div>
+
+<div class="inp-row">
+    <input id="inp" placeholder="Type your order here..." disabled onkeydown="if(event.key==='Enter')doSend()">
+    <button class="b-send" id="btnSend" onclick="doSend()" disabled>➤</button>
+</div>
+
+<div class="tip">💡 Deepgram STT → Groq LLM (Llama 3.3 70B) → Deepgram TTS — ultra-fast voice AI. Say "done" to finish.</div>
+
+<script>
+// ==============================================================
+// State
+// ==============================================================
+let ws = null, sessionId = null, isRec = false;
+let micStream = null, audioCtx = null, scriptNode = null, recBuf = [];
+const TARGET_SR = 16000;
+const $ = id => document.getElementById(id);
+
+// ==============================================================
+// UI Helpers
+// ==============================================================
+function setStatus(cls, txt) { $('st').className = 'status ' + cls; $('st').textContent = txt; }
+
+function addBubble(cls, html) {
+    const d = document.createElement('div');
+    d.className = 'bubble ' + cls;
+    d.innerHTML = html;
+    $('chat').appendChild(d);
+    $('chat').scrollTop = $('chat').scrollHeight;
+}
+
+function enableUI(on) {
+    $('btnMic').disabled = !on;
+    $('btnEnd').disabled = !on;
+    $('inp').disabled = !on;
+    $('btnSend').disabled = !on;
+    $('btnStart').disabled = on;
+}
+
+function showOrder(order) {
+    if (!order || !order.items || !order.items.length) { $('obox').style.display = 'none'; return; }
+    $('obox').style.display = 'block';
+    let h = '';
+    order.items.forEach(i => {
+        const m = (i.modifications && i.modifications.length) ? ' <small style="color:#888">(' + i.modifications.join(', ') + ')</small>' : '';
+        const sub = i.subtotal || (i.price * i.quantity);
+        h += '<div class="oitem"><span>' + i.quantity + 'x ' + i.name + m + '</span><span>₹' + sub + '</span></div>';
+    });
+    h += '<div class="ototal"><span>Total</span><span>₹' + order.total + '</span></div>';
+    $('olist').innerHTML = h;
+}
+
+// ==============================================================
+// Audio → WAV conversion (browser-side, no ffmpeg needed)
+// ==============================================================
+function float32ToInt16(f32) {
+    const i16 = new Int16Array(f32.length);
+    for (let i = 0; i < f32.length; i++) {
+        const s = Math.max(-1, Math.min(1, f32[i]));
+        i16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return i16;
+}
+
+function encodeWAV(samples, sr) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    function writeStr(o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    writeStr(0, 'RIFF');
+    v.setUint32(4, 36 + samples.length * 2, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    v.setUint32(16, 16, true);     // chunk size
+    v.setUint16(20, 1, true);      // PCM
+    v.setUint16(22, 1, true);      // mono
+    v.setUint32(24, sr, true);     // sample rate
+    v.setUint32(28, sr * 2, true); // byte rate
+    v.setUint16(32, 2, true);      // block align
+    v.setUint16(34, 16, true);     // bits per sample
+    writeStr(36, 'data');
+    v.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) v.setInt16(44 + i * 2, samples[i], true);
+    return new Uint8Array(buf);
+}
+
+// Convert Uint8Array to base64 in chunks (avoids call stack overflow)
+function uint8ToBase64(u8) {
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < u8.length; i += chunkSize) {
+        const slice = u8.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, slice);
+    }
+    return btoa(binary);
+}
+
+// ==============================================================
+// Mic Recording (ScriptProcessorNode → WAV)
+// ==============================================================
+async function startRec() {
+    try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { sampleRate: TARGET_SR, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+        });
+    } catch(e) {
+        addBubble('b-sys', '⚠️ Mic access denied. Please use text input instead.');
+        return;
+    }
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: TARGET_SR });
+    const src = audioCtx.createMediaStreamSource(micStream);
+    scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
+    recBuf = [];
+
+    scriptNode.onaudioprocess = (e) => {
+        recBuf.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+
+    src.connect(scriptNode);
+    scriptNode.connect(audioCtx.destination);
+
+    isRec = true;
+    $('btnMic').classList.add('rec');
+    $('btnMic').textContent = '⏹';
+    addBubble('b-sys', '🔴 Recording... tap ⏹ when done speaking');
+}
+
+function stopRec() {
+    isRec = false;
+    $('btnMic').classList.remove('rec');
+    $('btnMic').textContent = '🎤';
+
+    if (scriptNode) { scriptNode.disconnect(); scriptNode = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+
+    // Merge recorded audio buffers
+    let totalLen = 0;
+    recBuf.forEach(b => totalLen += b.length);
+    const merged = new Float32Array(totalLen);
+    let offset = 0;
+    recBuf.forEach(b => { merged.set(b, offset); offset += b.length; });
+
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+
+    if (merged.length < 3200) { // < 0.2s
+        addBubble('b-sys', 'Recording too short. Hold mic longer.');
+        return;
+    }
+
+    // Convert to WAV
+    const int16 = float32ToInt16(merged);
+    const wavBytes = encodeWAV(int16, TARGET_SR);
+    const b64 = uint8ToBase64(wavBytes);
+
+    addBubble('b-sys', '🎧 Sending ' + (wavBytes.length / 1024).toFixed(0) + 'KB audio...');
+    setStatus('s-busy', 'AI listening...');
+
+    ws.send(JSON.stringify({ type: 'audio', data: b64 }));
+}
+
+// ==============================================================
+// Audio Playback
+// ==============================================================
+function playB64(b64) {
+    try {
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        const blob = new Blob([arr], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        const a = new Audio(url);
+        a.play().catch(() => console.warn('Autoplay blocked. Tap the page first.'));
+        a.onended = () => URL.revokeObjectURL(url);
+    } catch(e) { console.warn('Playback error:', e); }
+}
+
+// ==============================================================
+// WebSocket Connection
+// ==============================================================
+function doStart() {
+    $('chat').innerHTML = '';
+    addBubble('b-sys', 'Connecting...');
+    $('obox').style.display = 'none';
+
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host + '/ws/conversation');
+
+    ws.onopen = () => {
+        setStatus('s-on', 'Connected');
+        ws.send(JSON.stringify({ type: 'start' }));
+    };
+
+    ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+
+        if (m.type === 'session_started') {
+            sessionId = m.session_id;
+            addBubble('b-sys', '📞 Call #' + m.session_id);
+            addBubble('b-bot', 'Hello! Welcome to our restaurant. What would you like to order today?');
+            enableUI(true);
+            $('inp').focus();
+        }
+        else if (m.type === 'response') {
+            setStatus('s-on', 'Connected');
+            // Show user text if they typed it (for text input)
+            if (m.transcript) addBubble('b-user', m.transcript);
+            // Show agent text if available
+            if (m.agent_text) {
+                const dur = m.duration_ms ? '<div class="tm">' + (m.duration_ms/1000).toFixed(1) + 's</div>' : '';
+                addBubble('b-bot', m.agent_text + dur);
+            } else {
+                // Audio-only response from Gemini Live API
+                addBubble('b-bot', '🔊 <i>Voice response</i>');
+            }
+            if (m.audio_base64) playB64(m.audio_base64);
+            if (m.order) showOrder(m.order);
+            $('inp').focus();
+        }
+        else if (m.type === 'session_ended') {
+            addBubble('b-sys', '📞 Call ended. Thank you!');
+            if (m.summary && m.summary.order) {
+                showOrder(m.summary.order);
+                addBubble('b-sys', '🧾 Final total: ₹' + m.summary.order.total);
+            }
+            setStatus('s-off', 'Call Ended');
+            enableUI(false);
+            sessionId = null;
+        }
+        else if (m.type === 'error') {
+            addBubble('b-sys', '⚠️ ' + m.message);
+            setStatus('s-on', 'Connected');
+        }
+    };
+
+    ws.onclose = () => {
+        setStatus('s-idle', 'Disconnected');
+        enableUI(false);
+    };
+    ws.onerror = () => {
+        addBubble('b-sys', '⚠️ Connection failed. Is the server running?');
+    };
+
+    $('btnStart').disabled = true;
+}
+
+function doEnd() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'end' }));
+    }
+}
+
+function doMic() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (isRec) stopRec(); else startRec();
+}
+
+function doSend() {
+    const t = $('inp').value.trim();
+    if (!t || !ws || ws.readyState !== WebSocket.OPEN) return;
+    addBubble('b-user', t);
+    setStatus('s-busy', 'AI thinking...');
+    ws.send(JSON.stringify({ type: 'text', data: t }));
+    $('inp').value = '';
+}
+</script>
+</body>
+</html>

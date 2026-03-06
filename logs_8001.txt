@@ -1,0 +1,1763 @@
+22:53:10 | INFO    | app.main | ======================================
+22:53:10 | INFO    | app.main |   AI Voice Copilot v0.2.0  — starting up
+22:53:10 | INFO    | app.main | ======================================
+22:53:10 | DEBUG   | groq._base_client | Request options: {'method': 'post', 'url': '/openai/v1/chat/completions', 'files': None, 'idempotency_key': 'stainless-python-retry-b04bd01b-dcc6-46c6-9427-192210129586', 'json_data': {'messages': [{'role': 'user', 'content': 'hi'}], 'model': 'llama-3.3-70b-versatile', 'max_tokens': 5}}
+22:53:10 | DEBUG   | groq._base_client | Sending HTTP Request: POST https://api.groq.com/openai/v1/chat/completions
+22:53:10 | DEBUG   | httpcore.connection | connect_tcp.started host='api.groq.com' port=443 local_address=None timeout=5.0 socket_options=None
+22:53:10 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA517516A0>
+22:53:10 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5107E440> server_hostname='api.groq.com' timeout=5.0
+22:53:10 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA51709F90>
+22:53:10 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+22:53:10 | DEBUG   | httpcore.http11 | send_request_headers.complete
+22:53:10 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+22:53:10 | DEBUG   | httpcore.http11 | send_request_body.complete
+22:53:10 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+22:53:10 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 06 Mar 2026 17:23:11 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Cache-Control', b'private, max-age=0, no-store, no-cache, must-revalidate'), (b'Server', b'cloudflare'), (b'vary', b'Origin'), (b'x-groq-region', b'bom'), (b'x-ratelimit-limit-requests', b'1000'), (b'x-ratelimit-limit-tokens', b'12000'), (b'x-ratelimit-remaining-requests', b'999'), (b'x-ratelimit-remaining-tokens', b'11963'), (b'x-ratelimit-reset-requests', b'1m26.4s'), (b'x-ratelimit-reset-tokens', b'185ms'), (b'x-request-id', b'req_01kk22sej8f8ybsyhe03bapywz'), (b'via', b'1.1 google'), (b'cf-cache-status', b'DYNAMIC'), (b'set-cookie', b'__cf_bm=XnwpJcaCWWNC2soPkP.M0RQOIoC4.t56ewbCmy.JTKA-1772817791.5327113-1.0.1.1-rofeq_M1ImT7KzjejmSfiMlGcL_IP.gl8ZhGcQRHngMwTiPa0EkhNcfpfQEGru47YVAAQGizPX2ZCmunvB73Y29V1rLSJpAvJ8m07zSdVEQ.IBnUkWsZYoREDcmW9eE4; HttpOnly; Secure; Path=/; Domain=groq.com; Expires=Fri, 06 Mar 2026 17:53:11 GMT'), (b'Strict-Transport-Security', b'max-age=15552000'), (b'Content-Encoding', b'gzip'), (b'CF-RAY', b'9d830bfd182489fc-BOM'), (b'alt-svc', b'h3=":443"; ma=86400')])
+22:53:10 | INFO    | httpx | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+22:53:10 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+22:53:10 | DEBUG   | httpcore.http11 | receive_response_body.complete
+22:53:10 | DEBUG   | httpcore.http11 | response_closed.started
+22:53:10 | DEBUG   | httpcore.http11 | response_closed.complete
+22:53:10 | DEBUG   | groq._base_client | HTTP Response: POST https://api.groq.com/openai/v1/chat/completions "200 OK" Headers({'date': 'Fri, 06 Mar 2026 17:23:11 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'private, max-age=0, no-store, no-cache, must-revalidate', 'server': 'cloudflare', 'vary': 'Origin', 'x-groq-region': 'bom', 'x-ratelimit-limit-requests': '1000', 'x-ratelimit-limit-tokens': '12000', 'x-ratelimit-remaining-requests': '999', 'x-ratelimit-remaining-tokens': '11963', 'x-ratelimit-reset-requests': '1m26.4s', 'x-ratelimit-reset-tokens': '185ms', 'x-request-id': 'req_01kk22sej8f8ybsyhe03bapywz', 'via': '1.1 google', 'cf-cache-status': 'DYNAMIC', 'set-cookie': '__cf_bm=XnwpJcaCWWNC2soPkP.M0RQOIoC4.t56ewbCmy.JTKA-1772817791.5327113-1.0.1.1-rofeq_M1ImT7KzjejmSfiMlGcL_IP.gl8ZhGcQRHngMwTiPa0EkhNcfpfQEGru47YVAAQGizPX2ZCmunvB73Y29V1rLSJpAvJ8m07zSdVEQ.IBnUkWsZYoREDcmW9eE4; HttpOnly; Secure; Path=/; Domain=groq.com; Expires=Fri, 06 Mar 2026 17:53:11 GMT', 'strict-transport-security': 'max-age=15552000', 'content-encoding': 'gzip', 'cf-ray': '9d830bfd182489fc-BOM', 'alt-svc': 'h3=":443"; ma=86400'})
+22:53:10 | DEBUG   | httpcore.connection | connect_tcp.started host='api.deepgram.com' port=443 local_address=None timeout=60 socket_options=None
+22:53:11 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA519C6270>
+22:53:11 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA50723D10> server_hostname='api.deepgram.com' timeout=60
+22:53:11 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA51A40410>
+22:53:11 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+22:53:11 | DEBUG   | httpcore.http11 | send_request_headers.complete
+22:53:11 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+22:53:11 | DEBUG   | httpcore.http11 | send_request_body.complete
+22:53:11 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+22:53:11 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'audio/wav'), (b'dg-model-name', b'aura-2-asteria-en'), (b'dg-model-uuid', b'151f870b-d6ac-4105-b173-b3ef86773633'), (b'dg-additional-model-uuids', b'0ec06c9b-0aa0-44d0-a001-3ec57d32229e,2e5096c7-7bf1-435e-bbdd-f673f88d0ebd'), (b'dg-char-count', b'2'), (b'dg-breaks-applied', b'0'), (b'dg-pronunciations-applied', b'0'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'dg-request-id', b'755fab65-30de-4dd8-b195-d8b2dfa18884'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:23:12 GMT')])
+22:53:11 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/speak?container=wav&encoding=linear16&model=aura-2-asteria-en&sample_rate=24000 "HTTP/1.1 200 OK"
+22:53:11 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+22:53:12 | DEBUG   | httpcore.http11 | receive_response_body.complete
+22:53:12 | DEBUG   | httpcore.http11 | response_closed.started
+22:53:12 | DEBUG   | httpcore.http11 | response_closed.complete
+22:53:12 | INFO    | app.main | Warming up edge-tts (Hindi voice)...
+22:53:12 | INFO    | app.voice.tts | TTS [edge-tts]: voice=hi-IN-SwaraNeural, lang=hi, text_len=6
+22:53:13 | INFO    | app.voice.tts | TTS [edge-tts] complete: 10080 bytes mp3, 1207ms
+INFO:     127.0.0.1:55368 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62615 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50788 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63217 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56106 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56863 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60686 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52105 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53354 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50329 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51885 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54303 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54751 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54751 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53213 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53213 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62088 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62088 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56013 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56013 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65013 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59778 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53265 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64345 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59480 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58036 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58040 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63627 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57916 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49666 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58802 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54444 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55481 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55420 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55190 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51001 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58986 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49753 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57254 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65092 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51372 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64487 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50944 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57708 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63122 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62126 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52909 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49667 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54226 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56869 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53712 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53712 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61224 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61224 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54561 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54561 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61745 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60645 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49351 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50638 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50417 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63887 - "GET /api/call/history HTTP/1.1" 200 OK
+22:58:23 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 1
+22:58:24 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 0
+22:58:24 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:63701 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63701 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62693 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62693 - "GET /api/call/history HTTP/1.1" 200 OK
+22:58:25 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 1
+22:58:26 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 2
+22:58:27 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 3
+22:58:28 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 4
+22:58:32 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 3
+22:58:32 | INFO    | app.main | Admin WebSocket disconnected
+22:58:32 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 2
+22:58:32 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:55543 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55543 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52820 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52820 - "GET /api/call/history HTTP/1.1" 200 OK
+22:58:36 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 3
+22:58:36 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 4
+22:58:37 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 5
+22:58:40 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 6
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:29]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[30:32]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[33:46]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[47:49]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[50:59]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[60:67]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[68:79]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[80:86]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[87:92]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[93:98]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[99:106]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[107:141]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[142:144]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[145:159]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[160:169]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[171:180]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[181:183]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[184:195]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[196:218]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[219:228]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[229:588]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:598]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[599:604]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[605:615]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[616:626]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[627:637]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[638:644]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[645:655]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:663]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[664:668]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[669:684]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[685:695]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[696:730]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[731:744]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[745:747]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[748:758]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[760:766]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[767:773]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[774:785]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[786:788]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[789:795]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[796:811]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[812:820]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[822:833]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[834:836]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[837:844]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[846:855]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[856:862]
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:10 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+22:59:10 | INFO    | app.api.call_routes |    From: +919723407801
+22:59:10 | INFO    | app.api.call_routes |    To:   +15705651315
+22:59:10 | INFO    | app.api.call_routes |    SID:  CAe7f4951e399a4fd822cda95cad1502d2
+22:59:10 | DEBUG   | app.websocket.manager | Broadcast event 'call_started' to 6 clients
+22:59:10 | INFO    | app.voice.tts | TTS [edge-tts]: voice=hi-IN-SwaraNeural, lang=hi, text_len=140
+22:59:11 | INFO    | app.voice.tts | TTS [edge-tts] complete: 90720 bytes mp3, 1374ms
+INFO:     35.175.236.0:0 - "POST /api/call/incoming-call HTTP/1.1" 200 OK
+INFO:     54.237.229.214:0 - "GET /api/call/audio/greet_15db52e4f739.mp3 HTTP/1.1" 200 OK
+22:59:45 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 5
+22:59:45 | INFO    | app.main | Admin WebSocket disconnected
+22:59:45 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 4
+22:59:45 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:58608 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58608 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54680 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54680 - "GET /api/call/history HTTP/1.1" 200 OK
+22:59:47 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 5
+22:59:48 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 6
+22:59:48 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 7
+22:59:50 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 8
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+22:59:54 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     54.210.244.150:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+22:59:55 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+22:59:55 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52CFA990>
+22:59:55 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA52C6A390> server_hostname='api.twilio.com' timeout=30.0
+22:59:55 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52C8F230>
+22:59:55 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+22:59:55 | DEBUG   | httpcore.http11 | send_request_headers.complete
+22:59:55 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+22:59:55 | DEBUG   | httpcore.http11 | send_request_body.complete
+22:59:55 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+22:59:55 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'245238'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:29:56 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.081'), (b'twilio-request-duration', b'0.112'), (b'twilio-request-id', b'RQa5c081ea6a31ca7e602e731dca75bcbe'), (b'twilio-request-id', b'RQa5c081ea6a31ca7e602e731dca75bcbe'), (b'x-envoy-upstream-service-time', b'85'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 0261a45edf9fa8a52158083448fcb032.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'NtbGjMAHVJYDad2v49ityZChjGLNFfHdw7q1HGKfc4CXOIDg9uk6cA=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+22:59:55 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/REdfd240b8c8ff6f6de5c6260c7303a1b0.wav "HTTP/1.1 200 OK"
+22:59:55 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+22:59:56 | DEBUG   | httpcore.http11 | receive_response_body.complete
+22:59:56 | DEBUG   | httpcore.http11 | response_closed.started
+22:59:56 | DEBUG   | httpcore.http11 | response_closed.complete
+22:59:56 | DEBUG   | httpcore.connection | close.started
+22:59:56 | DEBUG   | httpcore.connection | close.complete
+22:59:57 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+22:59:57 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52D4C050>
+22:59:57 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+22:59:57 | DEBUG   | httpcore.http11 | send_request_headers.complete
+22:59:57 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+22:59:57 | DEBUG   | httpcore.http11 | send_request_body.complete
+22:59:57 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+INFO:     54.81.135.3:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REdfd240b8c8ff6f6de5c6260c7303a1b0 HTTP/1.1" 200 OK
+23:00:14 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 7
+23:00:14 | INFO    | app.main | Admin WebSocket disconnected
+23:00:14 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 6
+23:00:14 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:59728 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59728 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57828 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57828 - "GET /api/call/history HTTP/1.1" 200 OK
+23:00:18 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 7
+23:00:18 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 8
+23:00:19 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 9
+INFO:     184.72.199.8:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REdfd240b8c8ff6f6de5c6260c7303a1b0 HTTP/1.1" 200 OK
+23:00:22 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 10
+23:00:30 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 9
+23:00:30 | INFO    | app.main | Admin WebSocket disconnected
+23:00:30 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 8
+23:00:30 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:56166 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56166 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54210 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54210 - "GET /api/call/history HTTP/1.1" 200 OK
+23:00:31 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 9
+INFO:     54.80.24.241:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REdfd240b8c8ff6f6de5c6260c7303a1b0 HTTP/1.1" 200 OK
+23:00:32 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Fri, 06 Mar 2026 17:29:57 GMT'), (b'server', b'uvicorn'), (b'content-length', b'809431'), (b'content-type', b'application/json')])
+23:00:32 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 200 OK"
+23:00:32 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:00:32 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:00:32 | DEBUG   | httpcore.http11 | response_closed.started
+23:00:32 | DEBUG   | httpcore.http11 | response_closed.complete
+23:00:32 | DEBUG   | httpcore.connection | close.started
+23:00:32 | DEBUG   | httpcore.connection | close.complete
+23:00:32 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 9 clients
+23:00:32 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 9 clients
+23:00:33 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 10
+23:00:33 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 11
+INFO:     35.175.236.0:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REdfd240b8c8ff6f6de5c6260c7303a1b0 HTTP/1.1" 200 OK
+INFO:     54.88.183.6:0 - "GET /api/call/audio/resp_cc14e1aa1d40.wav HTTP/1.1" 200 OK
+23:00:34 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 12
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:02 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     54.88.183.6:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:01:03 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:01:03 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52D50EF0>
+23:01:03 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA52D1A390> server_hostname='api.twilio.com' timeout=30.0
+23:01:03 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52CBF240>
+23:01:03 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:01:03 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:01:03 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:01:03 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:01:03 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:01:04 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'43668'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:31:04 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.088'), (b'twilio-request-duration', b'0.125'), (b'twilio-request-id', b'RQ64462938c371d4b9fb9087cdff7d3bd5'), (b'twilio-request-id', b'RQ64462938c371d4b9fb9087cdff7d3bd5'), (b'x-envoy-upstream-service-time', b'92'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 306f9988120d2932240ba9b255b159ba.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'sp6sr-gRYD3tcrC-Nz8Tc5DNN3gb5GA3ZFx_e-LbNy_KScCtPQgU9g=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:01:04 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/REc63eabe66e6e96553028b8f3ed694281.wav "HTTP/1.1 200 OK"
+23:01:04 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:01:04 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:01:04 | DEBUG   | httpcore.http11 | response_closed.started
+23:01:04 | DEBUG   | httpcore.http11 | response_closed.complete
+23:01:04 | DEBUG   | httpcore.connection | close.started
+23:01:04 | DEBUG   | httpcore.connection | close.complete
+23:01:04 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:01:05 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52DD0D10>
+23:01:05 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:01:05 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:01:05 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:01:05 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:01:05 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+INFO:     100.26.23.76:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REc63eabe66e6e96553028b8f3ed694281 HTTP/1.1" 200 OK
+23:01:21 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 11
+23:01:21 | INFO    | app.main | Admin WebSocket disconnected
+23:01:21 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 10
+23:01:21 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:58712 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58712 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65274 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65274 - "GET /api/call/history HTTP/1.1" 200 OK
+23:01:22 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Fri, 06 Mar 2026 17:31:04 GMT'), (b'server', b'uvicorn'), (b'content-length', b'643092'), (b'content-type', b'application/json')])
+23:01:22 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 200 OK"
+23:01:22 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:01:22 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:01:22 | DEBUG   | httpcore.http11 | response_closed.started
+23:01:22 | DEBUG   | httpcore.http11 | response_closed.complete
+23:01:22 | DEBUG   | httpcore.connection | close.started
+23:01:22 | DEBUG   | httpcore.connection | close.complete
+23:01:22 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 10 clients
+23:01:22 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 10 clients
+INFO:     54.224.41.173:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REc63eabe66e6e96553028b8f3ed694281 HTTP/1.1" 200 OK
+INFO:     52.90.132.159:0 - "GET /api/call/audio/resp_7dc28d523175.wav HTTP/1.1" 200 OK
+23:01:23 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 11
+23:01:25 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 12
+23:01:25 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 13
+23:01:26 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 14
+23:01:46 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 13
+23:01:46 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:51352 - "GET /api/call/active HTTP/1.1" 200 OK
+23:01:46 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 12
+23:01:46 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:51352 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51352 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51352 - "GET /api/call/history HTTP/1.1" 200 OK
+23:01:50 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 13
+23:01:50 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 14
+23:01:51 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 15
+23:01:53 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 14
+23:01:53 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:51688 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63526 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51201 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51201 - "GET /api/call/history HTTP/1.1" 200 OK
+23:01:55 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 15
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:01:56 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     3.80.227.158:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:01:56 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:01:56 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52DCB150>
+23:01:56 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA52DEA8D0> server_hostname='api.twilio.com' timeout=30.0
+23:01:56 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA52DCB850>
+23:01:56 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:01:56 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:01:56 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:01:56 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:01:56 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:01:57 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'148776'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:31:57 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.114'), (b'twilio-request-duration', b'0.130'), (b'twilio-request-id', b'RQ3bad1d65928090cee040cbcd98d0a8a3'), (b'twilio-request-id', b'RQ3bad1d65928090cee040cbcd98d0a8a3'), (b'x-envoy-upstream-service-time', b'116'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 10bad5640499b6b4e82e61d8de4bb8d2.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'e-DPT2nlNfUA_hCUaYRIy38pkJ2-mso9fJSn29J1Z54D8rWwFz845g=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:01:57 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/RE1dad0fecf1d406b4d0d0e1000088c864.wav "HTTP/1.1 200 OK"
+23:01:57 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:01:57 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:01:57 | DEBUG   | httpcore.http11 | response_closed.started
+23:01:57 | DEBUG   | httpcore.http11 | response_closed.complete
+23:01:57 | DEBUG   | httpcore.connection | close.started
+23:01:57 | DEBUG   | httpcore.connection | close.complete
+23:01:57 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:01:57 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 16
+23:01:57 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 17
+23:01:57 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53E167B0>
+23:01:57 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:01:57 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:01:57 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:01:57 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:01:57 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:01:58 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 18
+23:02:03 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 17
+23:02:03 | INFO    | app.main | Admin WebSocket disconnected
+23:02:03 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 16
+23:02:03 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:57791 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57791 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57573 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57573 - "GET /api/call/history HTTP/1.1" 200 OK
+23:02:05 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 17
+23:02:06 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 18
+23:02:06 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 19
+23:02:08 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 20
+INFO:     13.222.29.31:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE1dad0fecf1d406b4d0d0e1000088c864 HTTP/1.1" 200 OK
+INFO:     54.172.17.77:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE1dad0fecf1d406b4d0d0e1000088c864 HTTP/1.1" 200 OK
+23:02:22 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Fri, 06 Mar 2026 17:31:57 GMT'), (b'server', b'uvicorn'), (b'content-length', b'517613'), (b'content-type', b'application/json')])
+23:02:22 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 200 OK"
+23:02:22 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:02:22 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:02:22 | DEBUG   | httpcore.http11 | response_closed.started
+23:02:22 | DEBUG   | httpcore.http11 | response_closed.complete
+23:02:22 | DEBUG   | httpcore.connection | close.started
+23:02:22 | DEBUG   | httpcore.connection | close.complete
+23:02:22 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 20 clients
+23:02:22 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 20 clients
+INFO:     54.175.36.146:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE1dad0fecf1d406b4d0d0e1000088c864 HTTP/1.1" 200 OK
+INFO:     18.206.160.247:0 - "GET /api/call/audio/resp_71df1f5619ec.wav HTTP/1.1" 200 OK
+23:02:33 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 19
+23:02:33 | INFO    | app.main | Admin WebSocket disconnected
+23:02:33 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 18
+23:02:33 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:61617 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61617 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56746 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56746 - "GET /api/call/history HTTP/1.1" 200 OK
+23:02:37 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 19
+23:02:37 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 20
+23:02:37 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 21
+23:02:40 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 22
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:28]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[29:36]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[37:49]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[50:189]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[190:197]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[198:200]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[201:214]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[215:217]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[218:227]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[228:235]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[236:247]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[248:254]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[255:260]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[261:266]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[267:274]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[275:309]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[310:312]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[313:327]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[328:337]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[339:348]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[349:351]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[352:361]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[362:367]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[368:378]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[379:389]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[390:400]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[401:407]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[408:418]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[419:430]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[431:443]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[444:478]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[479:483]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[484:499]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[500:510]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[511:545]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[546:559]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[560:562]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[563:573]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[575:581]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[582:588]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:600]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[601:603]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[604:610]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[611:626]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[627:635]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:648]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[649:651]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[652:659]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[661:670]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[671:677]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[678:695]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[696:698]
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:03:17 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     18.208.134.29:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:03:17 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:03:17 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53EAC9B0>
+23:03:17 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA53E4D3D0> server_hostname='api.twilio.com' timeout=30.0
+23:03:17 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53E82C10>
+23:03:17 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:03:17 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:03:17 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:03:17 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:03:17 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:03:18 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'687110'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:33:18 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.100'), (b'twilio-request-duration', b'0.143'), (b'twilio-request-id', b'RQ2a29ba0372ec8386b2bbd3a08699cd39'), (b'twilio-request-id', b'RQ2a29ba0372ec8386b2bbd3a08699cd39'), (b'x-envoy-upstream-service-time', b'105'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 10bad5640499b6b4e82e61d8de4bb8d2.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'5Uh617H8ju_jjSFlUfU7Xd522_zO4jSXc5WGoUQHUhYhAeAGbPnVsQ=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:03:18 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/RE7fafc1e047a5d9181c8805e80283ca8a.wav "HTTP/1.1 200 OK"
+23:03:18 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:03:19 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:03:19 | DEBUG   | httpcore.http11 | response_closed.started
+23:03:19 | DEBUG   | httpcore.http11 | response_closed.complete
+23:03:19 | DEBUG   | httpcore.connection | close.started
+23:03:19 | DEBUG   | httpcore.connection | close.complete
+23:03:19 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:03:19 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53E82F90>
+23:03:19 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:03:19 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:03:19 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:03:19 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:03:19 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+INFO:     54.80.24.241:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+INFO:     34.224.71.140:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+INFO:     54.210.244.150:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+INFO:     52.23.159.117:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+INFO:     13.222.29.31:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+23:04:19 | DEBUG   | httpcore.http11 | receive_response_headers.failed exception=ReadTimeout(TimeoutError())
+23:04:19 | DEBUG   | httpcore.http11 | response_closed.started
+23:04:19 | DEBUG   | httpcore.http11 | response_closed.complete
+23:04:19 | INFO    | app.voice.stt | Transcribing audio with Deepgram: 687110 bytes
+23:04:20 | DEBUG   | httpcore.connection | close.started
+23:04:20 | DEBUG   | httpcore.connection | close.complete
+23:04:20 | DEBUG   | httpcore.connection | connect_tcp.started host='api.deepgram.com' port=443 local_address=None timeout=60 socket_options=None
+23:04:20 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA53EC5E50>
+23:04:20 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA50723D10> server_hostname='api.deepgram.com' timeout=60
+23:04:20 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA53E79F30>
+23:04:20 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:04:20 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:04:20 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:04:22 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:04:22 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:04:22 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'application/json'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'content-encoding', b'gzip'), (b'dg-request-id', b'98cf5bd1-455a-4441-a42d-7a22709aa549'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:34:23 GMT')])
+23:04:22 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/listen?detect_language=true&model=nova-3&punctuate=true&smart_format=true "HTTP/1.1 200 OK"
+23:04:22 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:04:22 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:04:22 | DEBUG   | httpcore.http11 | response_closed.started
+23:04:22 | DEBUG   | httpcore.http11 | response_closed.complete
+23:04:22 | INFO    | app.voice.stt | Transcription complete: lang=es, length=16 chars, confidence=0.61, time=2781ms
+23:04:22 | DEBUG   | groq._base_client | Sending HTTP Request: POST https://api.groq.com/openai/v1/chat/completions
+23:04:22 | DEBUG   | httpcore.connection | close.started
+23:04:22 | DEBUG   | httpcore.connection | close.complete
+23:04:22 | DEBUG   | httpcore.connection | connect_tcp.started host='api.groq.com' port=443 local_address=None timeout=5.0 socket_options=None
+23:04:22 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53E94E20>
+23:04:22 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5107E440> server_hostname='api.groq.com' timeout=5.0
+23:04:22 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA54F4A2D0>
+23:04:22 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:04:22 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:04:22 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:04:22 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:04:22 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 06 Mar 2026 17:34:24 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Cache-Control', b'private, max-age=0, no-store, no-cache, must-revalidate'), (b'Server', b'cloudflare'), (b'vary', b'Origin'), (b'x-groq-region', b'bom'), (b'x-ratelimit-limit-requests', b'1000'), (b'x-ratelimit-limit-tokens', b'12000'), (b'x-ratelimit-remaining-requests', b'999'), (b'x-ratelimit-remaining-tokens', b'10443'), (b'x-ratelimit-reset-requests', b'1m26.4s'), (b'x-ratelimit-reset-tokens', b'7.785s'), (b'x-request-id', b'req_01kk23dyx8e4vsb45acgm1ejyb'), (b'via', b'1.1 google'), (b'cf-cache-status', b'DYNAMIC'), (b'Strict-Transport-Security', b'max-age=15552000'), (b'Content-Encoding', b'gzip'), (b'CF-RAY', b'9d831c65baaeffa3-BOM'), (b'alt-svc', b'h3=":443"; ma=86400')])
+23:04:23 | INFO    | httpx | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:04:23 | DEBUG   | httpcore.http11 | response_closed.started
+23:04:23 | DEBUG   | httpcore.http11 | response_closed.complete
+23:04:23 | DEBUG   | groq._base_client | HTTP Response: POST https://api.groq.com/openai/v1/chat/completions "200 OK" Headers({'date': 'Fri, 06 Mar 2026 17:34:24 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'private, max-age=0, no-store, no-cache, must-revalidate', 'server': 'cloudflare', 'vary': 'Origin', 'x-groq-region': 'bom', 'x-ratelimit-limit-requests': '1000', 'x-ratelimit-limit-tokens': '12000', 'x-ratelimit-remaining-requests': '999', 'x-ratelimit-remaining-tokens': '10443', 'x-ratelimit-reset-requests': '1m26.4s', 'x-ratelimit-reset-tokens': '7.785s', 'x-request-id': 'req_01kk23dyx8e4vsb45acgm1ejyb', 'via': '1.1 google', 'cf-cache-status': 'DYNAMIC', 'strict-transport-security': 'max-age=15552000', 'content-encoding': 'gzip', 'cf-ray': '9d831c65baaeffa3-BOM', 'alt-svc': 'h3=":443"; ma=86400'})
+23:04:23 | INFO    | app.voice.tts | TTS [deepgram]: voice=aura-2-asteria-en, lang=en, text_len=189
+23:04:23 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:04:23 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:04:23 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:04:23 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'audio/wav'), (b'dg-model-name', b'aura-2-asteria-en'), (b'dg-model-uuid', b'151f870b-d6ac-4105-b173-b3ef86773633'), (b'dg-additional-model-uuids', b'0ec06c9b-0aa0-44d0-a001-3ec57d32229e,2e5096c7-7bf1-435e-bbdd-f673f88d0ebd'), (b'dg-char-count', b'189'), (b'dg-breaks-applied', b'0'), (b'dg-pronunciations-applied', b'0'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'dg-request-id', b'6510fe95-a087-4193-b91a-07641caa7da0'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:34:24 GMT')])
+23:04:23 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/speak?container=wav&encoding=linear16&model=aura-2-asteria-en&sample_rate=24000 "HTTP/1.1 200 OK"
+23:04:23 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:04:27 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:04:27 | DEBUG   | httpcore.http11 | response_closed.started
+23:04:27 | DEBUG   | httpcore.http11 | response_closed.complete
+23:04:27 | INFO    | app.voice.tts | TTS [deepgram] complete: 443564 bytes wav, 4534ms
+23:04:27 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 22 clients
+23:04:27 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 22 clients
+INFO:     13.221.79.19:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE7fafc1e047a5d9181c8805e80283ca8a HTTP/1.1" 200 OK
+INFO:     54.80.24.241:0 - "GET /api/call/audio/resp_2b348fa77a47.wav HTTP/1.1" 200 OK
+23:04:55 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 21
+23:04:55 | INFO    | app.main | Admin WebSocket disconnected
+23:04:55 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 20
+23:04:55 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:63753 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63753 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52376 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52376 - "GET /api/call/history HTTP/1.1" 200 OK
+23:04:59 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 21
+23:04:59 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 22
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:05:05 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     13.217.139.246:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:05:05 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:05:05 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 23
+23:05:05 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA54F4B1D0>
+23:05:05 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA54F4B590> server_hostname='api.twilio.com' timeout=30.0
+23:05:05 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53EA8100>
+23:05:05 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:05:05 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:05:05 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:05:05 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:05:05 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:05:06 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'376130'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:35:06 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.088'), (b'twilio-request-duration', b'0.121'), (b'twilio-request-id', b'RQecc21527afc82cfe1eb2a85811d31560'), (b'twilio-request-id', b'RQecc21527afc82cfe1eb2a85811d31560'), (b'x-envoy-upstream-service-time', b'91'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 020873db1c43b536009b06ed5b89f9fc.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'0R_9fNPYUK5t63zSlnR979nY96q7oh3UhWmiToeBO31nm0J-X1EjuQ=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:05:06 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/RE70ed107eaf69b975d6e341435de1e703.wav "HTTP/1.1 200 OK"
+23:05:06 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:05:06 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:05:06 | DEBUG   | httpcore.http11 | response_closed.started
+23:05:06 | DEBUG   | httpcore.http11 | response_closed.complete
+23:05:06 | DEBUG   | httpcore.connection | close.started
+23:05:06 | DEBUG   | httpcore.connection | close.complete
+23:05:06 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:05:06 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA53EA97B0>
+23:05:06 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:05:06 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:05:06 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:05:06 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:05:06 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:05:08 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 24
+INFO:     18.206.196.196:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE70ed107eaf69b975d6e341435de1e703 HTTP/1.1" 200 OK
+INFO:     100.27.198.110:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE70ed107eaf69b975d6e341435de1e703 HTTP/1.1" 200 OK
+INFO:     54.163.31.141:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE70ed107eaf69b975d6e341435de1e703 HTTP/1.1" 200 OK
+23:05:44 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 23
+23:05:44 | INFO    | app.main | Admin WebSocket disconnected
+23:05:44 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 22
+23:05:44 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:52041 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52041 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54768 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54768 - "GET /api/call/history HTTP/1.1" 200 OK
+23:05:48 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 23
+23:05:48 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 24
+23:05:49 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 25
+23:05:50 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'date', b'Fri, 06 Mar 2026 17:35:06 GMT'), (b'server', b'uvicorn'), (b'content-length', b'254'), (b'content-type', b'application/json')])
+23:05:50 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 500 Internal Server Error"
+23:05:50 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:05:50 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:05:50 | DEBUG   | httpcore.http11 | response_closed.started
+23:05:50 | DEBUG   | httpcore.http11 | response_closed.complete
+23:05:50 | DEBUG   | httpcore.connection | close.started
+23:05:50 | DEBUG   | httpcore.connection | close.complete
+23:05:50 | INFO    | app.voice.stt | Transcribing audio with Deepgram: 376130 bytes
+23:05:50 | DEBUG   | httpcore.connection | close.started
+23:05:50 | DEBUG   | httpcore.connection | close.complete
+23:05:50 | DEBUG   | httpcore.connection | connect_tcp.started host='api.deepgram.com' port=443 local_address=None timeout=60 socket_options=None
+23:05:50 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA53E7BBB0>
+23:05:50 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA50723D10> server_hostname='api.deepgram.com' timeout=60
+23:05:50 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA53E3C950>
+23:05:50 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:05:50 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:05:50 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:05:52 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:05:52 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:05:52 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'application/json'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'content-encoding', b'gzip'), (b'dg-request-id', b'ccd72543-819b-4fd5-8a2e-62475f7451c8'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:35:53 GMT')])
+23:05:52 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/listen?detect_language=true&model=nova-3&punctuate=true&smart_format=true "HTTP/1.1 200 OK"
+23:05:52 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:05:52 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:05:52 | DEBUG   | httpcore.http11 | response_closed.started
+23:05:52 | DEBUG   | httpcore.http11 | response_closed.complete
+23:05:52 | INFO    | app.voice.stt | Transcription complete: lang=es, length=14 chars, confidence=0.96, time=2408ms
+23:05:52 | DEBUG   | groq._base_client | Sending HTTP Request: POST https://api.groq.com/openai/v1/chat/completions
+23:05:52 | DEBUG   | httpcore.connection | close.started
+23:05:52 | DEBUG   | httpcore.connection | close.complete
+23:05:52 | DEBUG   | httpcore.connection | connect_tcp.started host='api.groq.com' port=443 local_address=None timeout=5.0 socket_options=None
+23:05:52 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 26
+23:05:52 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA55026990>
+23:05:52 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5107E440> server_hostname='api.groq.com' timeout=5.0
+23:05:52 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA55026C10>
+23:05:52 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:05:52 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:05:52 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:05:52 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:05:52 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+INFO:     54.210.244.150:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE70ed107eaf69b975d6e341435de1e703 HTTP/1.1" 200 OK
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 06 Mar 2026 17:35:54 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Cache-Control', b'private, max-age=0, no-store, no-cache, must-revalidate'), (b'Server', b'cloudflare'), (b'vary', b'Origin'), (b'x-groq-region', b'bom'), (b'x-ratelimit-limit-requests', b'1000'), (b'x-ratelimit-limit-tokens', b'12000'), (b'x-ratelimit-remaining-requests', b'999'), (b'x-ratelimit-remaining-tokens', b'10387'), (b'x-ratelimit-reset-requests', b'1m26.4s'), (b'x-ratelimit-reset-tokens', b'8.064s'), (b'x-request-id', b'req_01kk23gpqzea7vscwxhc7nkjyp'), (b'via', b'1.1 google'), (b'cf-cache-status', b'DYNAMIC'), (b'Strict-Transport-Security', b'max-age=15552000'), (b'Content-Encoding', b'gzip'), (b'CF-RAY', b'9d831e97ca993b25-BOM'), (b'alt-svc', b'h3=":443"; ma=86400')])
+23:05:53 | INFO    | httpx | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:05:53 | DEBUG   | httpcore.http11 | response_closed.started
+23:05:53 | DEBUG   | httpcore.http11 | response_closed.complete
+23:05:53 | DEBUG   | groq._base_client | HTTP Response: POST https://api.groq.com/openai/v1/chat/completions "200 OK" Headers({'date': 'Fri, 06 Mar 2026 17:35:54 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'private, max-age=0, no-store, no-cache, must-revalidate', 'server': 'cloudflare', 'vary': 'Origin', 'x-groq-region': 'bom', 'x-ratelimit-limit-requests': '1000', 'x-ratelimit-limit-tokens': '12000', 'x-ratelimit-remaining-requests': '999', 'x-ratelimit-remaining-tokens': '10387', 'x-ratelimit-reset-requests': '1m26.4s', 'x-ratelimit-reset-tokens': '8.064s', 'x-request-id': 'req_01kk23gpqzea7vscwxhc7nkjyp', 'via': '1.1 google', 'cf-cache-status': 'DYNAMIC', 'strict-transport-security': 'max-age=15552000', 'content-encoding': 'gzip', 'cf-ray': '9d831e97ca993b25-BOM', 'alt-svc': 'h3=":443"; ma=86400'})
+23:05:53 | INFO    | app.voice.tts | TTS [deepgram]: voice=aura-2-asteria-en, lang=en, text_len=238
+23:05:53 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:05:53 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:05:53 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:05:53 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'audio/wav'), (b'dg-model-name', b'aura-2-asteria-en'), (b'dg-model-uuid', b'151f870b-d6ac-4105-b173-b3ef86773633'), (b'dg-additional-model-uuids', b'0ec06c9b-0aa0-44d0-a001-3ec57d32229e,2e5096c7-7bf1-435e-bbdd-f673f88d0ebd'), (b'dg-char-count', b'238'), (b'dg-breaks-applied', b'0'), (b'dg-pronunciations-applied', b'0'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'dg-request-id', b'e1adc1b6-0068-44b3-a9bd-b341c3f72eb4'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:35:54 GMT')])
+23:05:53 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/speak?container=wav&encoding=linear16&model=aura-2-asteria-en&sample_rate=24000 "HTTP/1.1 200 OK"
+23:05:53 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:05:59 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:05:59 | DEBUG   | httpcore.http11 | response_closed.started
+23:05:59 | DEBUG   | httpcore.http11 | response_closed.complete
+23:05:59 | INFO    | app.voice.tts | TTS [deepgram] complete: 593324 bytes wav, 5944ms
+23:05:59 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 26 clients
+23:05:59 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 26 clients
+INFO:     54.147.41.214:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE70ed107eaf69b975d6e341435de1e703 HTTP/1.1" 200 OK
+INFO:     54.175.254.63:0 - "GET /api/call/audio/resp_ba692ded831c.wav HTTP/1.1" 200 OK
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:06:29 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     18.233.225.114:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:06:30 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:06:30 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA550B4560>
+23:06:30 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5507E450> server_hostname='api.twilio.com' timeout=30.0
+23:06:30 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA550C8A50>
+23:06:30 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:06:30 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:06:30 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:06:30 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:06:30 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:06:30 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'214930'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:36:31 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.088'), (b'twilio-request-duration', b'0.118'), (b'twilio-request-id', b'RQcc8a064dee281d21479f19c75c866af7'), (b'twilio-request-id', b'RQcc8a064dee281d21479f19c75c866af7'), (b'x-envoy-upstream-service-time', b'105'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 080f0f4293eb18c5c10e07837c1c5416.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'YW3ztObdOCLLRbBlRw5goF2F7PhoiNmVE2JxpbtjhJB7Y6ugCRXgFg=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:06:30 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/REe0d8150c6433a70952e96dcc853b2b52.wav "HTTP/1.1 200 OK"
+23:06:30 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:06:30 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:06:30 | DEBUG   | httpcore.http11 | response_closed.started
+23:06:30 | DEBUG   | httpcore.http11 | response_closed.complete
+23:06:30 | DEBUG   | httpcore.connection | close.started
+23:06:30 | DEBUG   | httpcore.connection | close.complete
+23:06:31 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:06:32 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA550C98D0>
+23:06:32 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:06:32 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:06:32 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:06:32 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:06:32 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+INFO:     54.175.254.63:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REe0d8150c6433a70952e96dcc853b2b52 HTTP/1.1" 200 OK
+INFO:     100.27.198.110:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REe0d8150c6433a70952e96dcc853b2b52 HTTP/1.1" 200 OK
+INFO:     52.90.81.228:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REe0d8150c6433a70952e96dcc853b2b52 HTTP/1.1" 200 OK
+23:07:09 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 500, b'Internal Server Error', [(b'date', b'Fri, 06 Mar 2026 17:36:31 GMT'), (b'server', b'uvicorn'), (b'content-length', b'254'), (b'content-type', b'application/json')])
+23:07:09 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 500 Internal Server Error"
+23:07:09 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:07:09 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:07:09 | DEBUG   | httpcore.http11 | response_closed.started
+23:07:09 | DEBUG   | httpcore.http11 | response_closed.complete
+23:07:09 | DEBUG   | httpcore.connection | close.started
+23:07:09 | DEBUG   | httpcore.connection | close.complete
+23:07:09 | INFO    | app.voice.stt | Transcribing audio with Deepgram: 214930 bytes
+23:07:09 | DEBUG   | httpcore.connection | close.started
+23:07:09 | DEBUG   | httpcore.connection | close.complete
+23:07:09 | DEBUG   | httpcore.connection | connect_tcp.started host='api.deepgram.com' port=443 local_address=None timeout=60 socket_options=None
+23:07:09 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA54FDF130>
+23:07:09 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA50723D10> server_hostname='api.deepgram.com' timeout=60
+23:07:10 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x000001DA54FDF680>
+23:07:10 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:07:10 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:07:10 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:07:11 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:07:11 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:07:13 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'content-type', b'application/json'), (b'dg-project-id', b'45c1337f-5a43-400c-a5a8-82ad010f8e17'), (b'vary', b'origin, access-control-request-method, access-control-request-headers'), (b'vary', b'accept-encoding'), (b'access-control-allow-credentials', b'true'), (b'access-control-expose-headers', b'dg-model-name,dg-model-uuid,dg-additional-model-uuids,dg-char-count,dg-request-id,dg-project-id,dg-error,dg-breaks-applied,dg-pronunciations-applied,dg-pronunciation-warnings'), (b'content-encoding', b'gzip'), (b'dg-request-id', b'ee0f4299-f133-40ef-8919-f7e679f1736a'), (b'transfer-encoding', b'chunked'), (b'date', b'Fri, 06 Mar 2026 17:37:14 GMT')])
+23:07:13 | INFO    | httpx | HTTP Request: POST https://api.deepgram.com/v1/listen?detect_language=true&model=nova-3&punctuate=true&smart_format=true "HTTP/1.1 200 OK"
+23:07:13 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:07:13 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:07:13 | DEBUG   | httpcore.http11 | response_closed.started
+23:07:13 | DEBUG   | httpcore.http11 | response_closed.complete
+23:07:13 | INFO    | app.voice.stt | Transcription complete: lang=hi, length=42 chars, confidence=1.00, time=4454ms
+23:07:13 | DEBUG   | groq._base_client | Sending HTTP Request: POST https://api.groq.com/openai/v1/chat/completions
+23:07:13 | DEBUG   | httpcore.connection | close.started
+23:07:13 | DEBUG   | httpcore.connection | close.complete
+23:07:13 | DEBUG   | httpcore.connection | connect_tcp.started host='api.groq.com' port=443 local_address=None timeout=5.0 socket_options=None
+23:07:13 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA5502B150>
+23:07:13 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5107E440> server_hostname='api.groq.com' timeout=5.0
+23:07:14 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA5502BF50>
+23:07:14 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:07:14 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:07:14 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:07:14 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:07:14 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:07:14 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Fri, 06 Mar 2026 17:37:15 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'Cache-Control', b'private, max-age=0, no-store, no-cache, must-revalidate'), (b'Server', b'cloudflare'), (b'vary', b'Origin'), (b'x-groq-region', b'bom'), (b'x-ratelimit-limit-requests', b'1000'), (b'x-ratelimit-limit-tokens', b'12000'), (b'x-ratelimit-remaining-requests', b'998'), (b'x-ratelimit-remaining-tokens', b'10303'), (b'x-ratelimit-reset-requests', b'2m52.8s'), (b'x-ratelimit-reset-tokens', b'8.484s'), (b'x-request-id', b'req_01kk23k61cedjtysb0kyf8q8wr'), (b'via', b'1.1 google'), (b'cf-cache-status', b'DYNAMIC'), (b'Strict-Transport-Security', b'max-age=15552000'), (b'Content-Encoding', b'gzip'), (b'CF-RAY', b'9d8320934c4985ba-BOM'), (b'alt-svc', b'h3=":443"; ma=86400')])
+23:07:14 | INFO    | httpx | HTTP Request: POST https://api.groq.com/openai/v1/chat/completions "HTTP/1.1 200 OK"
+23:07:14 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:07:14 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:07:14 | DEBUG   | httpcore.http11 | response_closed.started
+23:07:14 | DEBUG   | httpcore.http11 | response_closed.complete
+23:07:14 | DEBUG   | groq._base_client | HTTP Response: POST https://api.groq.com/openai/v1/chat/completions "200 OK" Headers({'date': 'Fri, 06 Mar 2026 17:37:15 GMT', 'content-type': 'application/json', 'transfer-encoding': 'chunked', 'connection': 'keep-alive', 'cache-control': 'private, max-age=0, no-store, no-cache, must-revalidate', 'server': 'cloudflare', 'vary': 'Origin', 'x-groq-region': 'bom', 'x-ratelimit-limit-requests': '1000', 'x-ratelimit-limit-tokens': '12000', 'x-ratelimit-remaining-requests': '998', 'x-ratelimit-remaining-tokens': '10303', 'x-ratelimit-reset-requests': '2m52.8s', 'x-ratelimit-reset-tokens': '8.484s', 'x-request-id': 'req_01kk23k61cedjtysb0kyf8q8wr', 'via': '1.1 google', 'cf-cache-status': 'DYNAMIC', 'strict-transport-security': 'max-age=15552000', 'content-encoding': 'gzip', 'cf-ray': '9d8320934c4985ba-BOM', 'alt-svc': 'h3=":443"; ma=86400'})
+23:07:14 | INFO    | app.voice.tts | TTS [edge-tts]: voice=hi-IN-SwaraNeural, lang=hi, text_len=187
+INFO:     52.205.147.195:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REe0d8150c6433a70952e96dcc853b2b52 HTTP/1.1" 200 OK
+23:07:20 | INFO    | app.voice.tts | TTS [edge-tts] complete: 97344 bytes mp3, 6212ms
+23:07:21 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 26 clients
+23:07:21 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 26 clients
+INFO:     54.175.36.146:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_REe0d8150c6433a70952e96dcc853b2b52 HTTP/1.1" 200 OK
+INFO:     3.89.5.107:0 - "GET /api/call/audio/resp_ad67a41b3d33.mp3 HTTP/1.1" 200 OK
+23:07:51 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 25
+23:07:51 | INFO    | app.main | Admin WebSocket disconnected
+23:07:51 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 24
+23:07:51 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:54931 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54931 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51865 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51865 - "GET /api/call/history HTTP/1.1" 200 OK
+23:07:55 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 25
+23:07:55 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 26
+23:07:55 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 27
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:34]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[35:174]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[175:182]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[183:185]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[186:199]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[200:202]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[203:212]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[213:220]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[221:232]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[233:239]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[240:245]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[246:251]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[252:259]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[260:294]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[295:297]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[298:312]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:322]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[324:333]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[334:336]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[337:346]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[347:352]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:374]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[375:385]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[386:392]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[393:403]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[404:415]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[416:428]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[429:463]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[464:468]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[469:484]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[485:495]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[496:530]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[531:544]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[545:547]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[548:558]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[560:566]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[567:573]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[574:585]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[586:588]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[589:595]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[596:611]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[612:620]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[622:633]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[634:636]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[637:644]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[646:655]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[656:662]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[663:680]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[681:683]
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:07:56 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+INFO:     100.26.23.76:0 - "POST /api/call/process-recording HTTP/1.1" 200 OK
+23:07:56 | DEBUG   | httpcore.connection | connect_tcp.started host='api.twilio.com' port=443 local_address=None timeout=30.0 socket_options=None
+23:07:57 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA550EA630>
+23:07:57 | DEBUG   | httpcore.connection | start_tls.started ssl_context=<ssl.SSLContext object at 0x000001DA5507DA90> server_hostname='api.twilio.com' timeout=30.0
+23:07:57 | DEBUG   | httpcore.connection | start_tls.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA550EA990>
+23:07:57 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'GET']>
+23:07:57 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:07:57 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'GET']>
+23:07:57 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:07:57 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'GET']>
+23:07:57 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Content-Type', b'audio/x-wav'), (b'Content-Length', b'68910'), (b'Connection', b'keep-alive'), (b'Date', b'Fri, 06 Mar 2026 17:37:58 GMT'), (b'Accept-Ranges', b'bytes'), (b'Server', b'envoy'), (b'twilio-request-duration', b'0.122'), (b'twilio-request-duration', b'0.145'), (b'twilio-request-id', b'RQc95a5a9ce2da2cf9105a45e4102a02dc'), (b'twilio-request-id', b'RQc95a5a9ce2da2cf9105a45e4102a02dc'), (b'x-envoy-upstream-service-time', b'128'), (b'Twilio-Concurrent-Requests', b'1'), (b'X-Home-Region', b'us1'), (b'X-API-Domain', b'api.twilio.com'), (b'Strict-Transport-Security', b'max-age=31536000'), (b'X-Cache', b'Miss from cloudfront'), (b'Via', b'1.1 161bfb479f69262e748fec176e94ce42.cloudfront.net (CloudFront)'), (b'X-Amz-Cf-Pop', b'BOM78-P4'), (b'X-Amz-Cf-Id', b'h7Y20DzIZnC444NXyFdJUMCBjGSE3cXEr7oqsO1j587qNd6Q0btf9A=='), (b'X-Powered-By', b'AT-5000'), (b'X-Shenanigans', b'none'), (b'Vary', b'Origin')])
+23:07:57 | INFO    | httpx | HTTP Request: GET https://api.twilio.com/2010-04-01/Accounts/AC4ce9e3c154d923319e55be34f4c74f97/Recordings/RE8b3fa22604acf153af461b690cb0d99f.wav "HTTP/1.1 200 OK"
+23:07:57 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'GET']>
+23:07:57 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:07:57 | DEBUG   | httpcore.http11 | response_closed.started
+23:07:57 | DEBUG   | httpcore.http11 | response_closed.complete
+23:07:57 | DEBUG   | httpcore.connection | close.started
+23:07:57 | DEBUG   | httpcore.connection | close.complete
+23:07:57 | DEBUG   | httpcore.connection | connect_tcp.started host='localhost' port=8002 local_address=None timeout=60.0 socket_options=None
+23:07:58 | DEBUG   | httpcore.connection | connect_tcp.complete return_value=<httpcore._backends.anyio.AnyIOStream object at 0x000001DA55103AC0>
+23:07:58 | DEBUG   | httpcore.http11 | send_request_headers.started request=<Request [b'POST']>
+23:07:58 | DEBUG   | httpcore.http11 | send_request_headers.complete
+23:07:58 | DEBUG   | httpcore.http11 | send_request_body.started request=<Request [b'POST']>
+23:07:58 | DEBUG   | httpcore.http11 | send_request_body.complete
+23:07:58 | DEBUG   | httpcore.http11 | receive_response_headers.started request=<Request [b'POST']>
+23:07:58 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 28
+23:08:02 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 27
+23:08:02 | INFO    | app.main | Admin WebSocket disconnected
+23:08:02 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 26
+23:08:02 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:50544 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50544 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51939 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51939 - "GET /api/call/history HTTP/1.1" 200 OK
+23:08:05 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 27
+23:08:05 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 28
+23:08:07 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 29
+INFO:     18.206.196.196:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE8b3fa22604acf153af461b690cb0d99f HTTP/1.1" 200 OK
+23:08:10 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 30
+23:08:13 | DEBUG   | httpcore.http11 | receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'date', b'Fri, 06 Mar 2026 17:37:57 GMT'), (b'server', b'uvicorn'), (b'content-length', b'276999'), (b'content-type', b'application/json')])
+23:08:13 | INFO    | httpx | HTTP Request: POST http://localhost:8002/voice/order "HTTP/1.1 200 OK"
+23:08:13 | DEBUG   | httpcore.http11 | receive_response_body.started request=<Request [b'POST']>
+23:08:13 | DEBUG   | httpcore.http11 | receive_response_body.complete
+23:08:13 | DEBUG   | httpcore.http11 | response_closed.started
+23:08:13 | DEBUG   | httpcore.http11 | response_closed.complete
+23:08:13 | DEBUG   | httpcore.connection | close.started
+23:08:13 | DEBUG   | httpcore.connection | close.complete
+23:08:13 | DEBUG   | app.websocket.manager | Broadcast event 'transcript_received' to 30 clients
+23:08:13 | DEBUG   | app.websocket.manager | Broadcast event 'response_generated' to 30 clients
+23:08:13 | DEBUG   | app.websocket.manager | Broadcast event 'order_confirmed' to 30 clients
+INFO:     54.210.244.150:0 - "POST /api/call/check-response/CAe7f4951e399a4fd822cda95cad1502d2_RE8b3fa22604acf153af461b690cb0d99f HTTP/1.1" 200 OK
+INFO:     34.228.192.217:0 - "GET /api/call/audio/resp_422e1afd553c.wav HTTP/1.1" 200 OK
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[0:6]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[7:21]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[22:29]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[30:32]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[33:46]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[47:49]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[50:59]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[60:67]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[68:77]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[78:127]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[128:142]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[143:163]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[164:175]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[176:182]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[183:188]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[189:194]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[195:209]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[210:211]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[212:219]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[220:254]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[255:257]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[258:272]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[273:282]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[284:293]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[294:296]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[297:306]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[307:312]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[313:323]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[324:334]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[335:345]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[346:352]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[353:363]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[364:373]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[374:382]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[383:385]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[386:390]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[391:406]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[407:419]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[420:423]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[424:434]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[435:469]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[470:483]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[484:486]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[487:497]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[499:505]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[506:512]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[513:524]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[525:527]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[528:534]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[535:550]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[551:559]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[561:572]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[573:575]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[576:583]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_start with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_name with data[585:594]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_data with data[595:601]
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_field_end with no data
+23:08:20 | DEBUG   | python_multipart.multipart | Calling on_end with no data
+23:08:20 | DEBUG   | app.websocket.manager | Broadcast event 'pipeline_complete' to 30 clients
+INFO:     52.207.198.230:0 - "POST /api/call/status HTTP/1.1" 200 OK
+23:08:20 | WARNING | app.api.call_routes | Failed to persist call log for CAe7f4951e399a4fd822cda95cad1502d2: invalid input for query argument $9: 1772818700.284597 (expected a datetime.date or datetime.datetime instance, got 'float')
+23:08:26 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 29
+23:08:26 | INFO    | app.main | Admin WebSocket disconnected
+23:08:26 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 28
+23:08:26 | INFO    | app.main | Admin WebSocket disconnected
+INFO:     127.0.0.1:52179 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52179 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58081 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58081 - "GET /api/call/history HTTP/1.1" 200 OK
+23:08:29 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 29
+23:08:29 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 30
+INFO:     127.0.0.1:52242 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52242 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63684 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63684 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50353 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62238 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49186 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64627 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60538 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64237 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63683 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53529 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57443 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57443 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57554 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57554 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60207 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57033 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52464 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49910 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61020 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54322 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51387 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52679 - "GET /api/call/history HTTP/1.1" 200 OK
+23:12:02 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 31
+23:12:05 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 32
+23:12:09 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 31
+23:12:09 | INFO    | app.main | Admin WebSocket disconnected
+23:12:09 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 30
+23:12:09 | INFO    | app.main | Admin WebSocket disconnected
+23:12:12 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 31
+23:12:12 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 32
+INFO:     127.0.0.1:56746 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56746 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62909 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62909 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53066 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50144 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57991 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56133 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58740 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58740 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61108 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61108 - "GET /api/call/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62005 - "GET /api/call/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60585 - "GET /api/call/history HTTP/1.1" 200 OK
+23:15:12 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 33
+23:15:15 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 34
+23:15:15 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 33
+23:15:15 | INFO    | app.main | Admin WebSocket disconnected
+23:15:15 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 32
+23:15:15 | INFO    | app.main | Admin WebSocket disconnected
+23:15:15 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 33
+23:15:18 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 34
+23:15:18 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 35
+23:17:18 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 34
+23:17:18 | INFO    | app.main | Admin WebSocket disconnected
+23:17:18 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 33
+23:17:18 | INFO    | app.main | Admin WebSocket disconnected
+23:17:18 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 34
+23:17:21 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 35
+23:17:21 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 36
+23:17:22 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 37
+23:17:23 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 36
+23:17:23 | INFO    | app.main | Admin WebSocket disconnected
+23:17:23 | INFO    | app.websocket.manager | WebSocket disconnected. Active connections: 35
+23:17:23 | INFO    | app.main | Admin WebSocket disconnected
+23:17:23 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 36
+23:17:26 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 37
+23:17:26 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 38
+23:17:26 | INFO    | app.websocket.manager | WebSocket connected. Active connections: 39

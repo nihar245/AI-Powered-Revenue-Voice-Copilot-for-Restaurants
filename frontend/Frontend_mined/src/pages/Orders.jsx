@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw } from 'lucide-react'
+import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw, Pencil, Trash2, XCircle, Save } from 'lucide-react'
 import { usePOS } from '../context/POSContext'
 import { apiFetch } from '../config'
 
@@ -20,6 +20,13 @@ export default function Orders() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [filter, setFilter] = useState('All')
   const [search, setSearch] = useState('')
+
+  // Order edit / delete state
+  const [editMode, setEditMode]       = useState(false)
+  const [editQtys, setEditQtys]       = useState({}) // { line_id: qty }
+  const [savingEdits, setSavingEdits] = useState(false)
+  const [deletingOrder, setDeletingOrder] = useState(false)
+  const [orderActionMsg, setOrderActionMsg] = useState(null) // { type: 'success'|'error', text }
 
   // Real menu data from API
   const [menuItems, setMenuItems] = useState([])  // [{item_id, name, variants:[{variant_id, variant_name, selling_price}]}]
@@ -111,6 +118,69 @@ export default function Orders() {
   }, [orders, filter, search]);
 
   const rec = selectedOrder ? buildRec(selectedOrder) : null
+
+  // \u2500\u2500 Enter edit mode: seed editQtys from current details \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const startEditItems = () => {
+    const initial = {}
+    selectedOrder?.details?.forEach(item => { if (item.line_id) initial[item.line_id] = item.qty })
+    setEditQtys(initial)
+    setEditMode(true)
+  }
+
+  // \u2500\u2500 Save edited items via PUT /orders/:id/items \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const saveItemEdits = async () => {
+    if (!selectedOrder) return
+    setSavingEdits(true)
+    try {
+      const items = Object.entries(editQtys).map(([line_id, qty]) => ({ line_id: parseInt(line_id, 10), qty }))
+      await apiFetch(`/orders/${selectedOrder.id}/items`, {
+        method: 'PUT',
+        body: JSON.stringify({ items }),
+      })
+      setOrderActionMsg({ type: 'success', text: 'Items updated!' })
+      setEditMode(false)
+      refreshOrders()
+      setTimeout(() => setOrderActionMsg(null), 3000)
+    } catch (e) {
+      setOrderActionMsg({ type: 'error', text: 'Update failed: ' + e.message })
+    } finally {
+      setSavingEdits(false)
+    }
+  }
+
+  // \u2500\u2500 Cancel order via PUT /orders/:id/cancel \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const cancelOrderById = async (orderId) => {
+    if (!window.confirm('Cancel this order?')) return
+    setDeletingOrder(true)
+    try {
+      await apiFetch(`/orders/${orderId}/cancel`, { method: 'PUT' })
+      setOrderActionMsg({ type: 'success', text: 'Order cancelled.' })
+      setSelectedOrder(null)
+      refreshOrders()
+      setTimeout(() => setOrderActionMsg(null), 3000)
+    } catch (e) {
+      setOrderActionMsg({ type: 'error', text: 'Cancel failed: ' + e.message })
+    } finally {
+      setDeletingOrder(false)
+    }
+  }
+
+  // \u2500\u2500 Delete order via DELETE /orders/:id (admin) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const deleteOrderById = async (orderId) => {
+    if (!window.confirm('Permanently delete this order from the kitchen and mark it cancelled?')) return
+    setDeletingOrder(true)
+    try {
+      await apiFetch(`/orders/${orderId}`, { method: 'DELETE' })
+      setOrderActionMsg({ type: 'success', text: 'Order deleted.' })
+      setSelectedOrder(null)
+      refreshOrders()
+      setTimeout(() => setOrderActionMsg(null), 3000)
+    } catch (e) {
+      setOrderActionMsg({ type: 'error', text: 'Delete failed: ' + e.message })
+    } finally {
+      setDeletingOrder(false)
+    }
+  }
 
   // --- NEW ORDER MODAL STATE ---
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -467,18 +537,48 @@ export default function Orders() {
                     {selectedOrder.createdAt && <p className="text-xs text-zinc-400">{selectedOrder.createdAt}</p>}
                   </div>
 
-                  {/* Items */}
+                  {/* Items + edit controls */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Items</span>
+                    {!editMode && selectedOrder.status !== 'Served' && selectedOrder.status !== 'cancelled' && (
+                      <button onClick={startEditItems} className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700">
+                        <Pencil size={11} /> Edit Qty
+                      </button>
+                    )}
+                    {editMode && (
+                      <button onClick={() => setEditMode(false)} className="flex items-center gap-1 text-xs text-surface-400 hover:text-surface-600">
+                        <XCircle size={11} /> Cancel
+                      </button>
+                    )}
+                  </div>
                   <div className="space-y-3 mb-4">
                     {selectedOrder.details?.map((item, i) => (
                       <div key={i} className="bg-surface-50 rounded-lg p-3 border border-surface-200 shadow-sm relative overflow-hidden">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-300" />
                         <div className="flex items-start justify-between gap-2 pl-2">
-                          <div>
-                            <span className="text-zinc-900 text-sm font-bold flex items-center gap-1">
-                              {item.qty && item.qty > 1 ? <span className="text-primary-600 font-bold">{item.qty}x</span> : ''} {item.name}
-                            </span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-zinc-900 text-sm font-bold block truncate">{item.name}</span>
                           </div>
-                          <span className="text-zinc-500 text-sm font-mono shrink-0">₹{item.price}</span>
+                          {editMode && item.line_id ? (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => setEditQtys(prev => ({ ...prev, [item.line_id]: Math.max(0, (prev[item.line_id] ?? item.qty) - 1) }))}
+                                className="w-6 h-6 rounded border border-surface-200 flex items-center justify-center hover:bg-red-50 hover:border-red-300 text-surface-500"
+                              ><Minus size={10} /></button>
+                              <span className="w-5 text-center text-sm font-bold text-primary-700">
+                                {editQtys[item.line_id] ?? item.qty}
+                              </span>
+                              <button
+                                onClick={() => setEditQtys(prev => ({ ...prev, [item.line_id]: (prev[item.line_id] ?? item.qty) + 1 }))}
+                                className="w-6 h-6 rounded border border-surface-200 flex items-center justify-center hover:bg-green-50 hover:border-green-300 text-surface-500"
+                              ><Plus size={10} /></button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 shrink-0">
+                              {item.qty > 1 && <span className="text-primary-600 font-bold text-sm">{item.qty}x</span>}
+                              <span className="text-zinc-500 text-sm font-mono">₹{item.price}</span>
+                            </div>
+                          )}
                         </div>
                         {item.mods && item.mods.length > 0 && (
                           <div className="mt-1.5 space-y-0.5 pl-2">
@@ -493,12 +593,52 @@ export default function Orders() {
                     ))}
                   </div>
 
+                  {editMode && (
+                    <button
+                      onClick={saveItemEdits}
+                      disabled={savingEdits}
+                      className="w-full mb-3 flex items-center justify-center gap-1.5 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Save size={13} />
+                      {savingEdits ? 'Saving…' : 'Save Changes'}
+                    </button>
+                  )}
+
                   <div className="border-t border-dashed border-surface-200 my-4" />
 
-                  <div className="flex items-center justify-between bg-zinc-50 p-2 rounded">
+                  <div className="flex items-center justify-between bg-zinc-50 p-2 rounded mb-4">
                     <span className="text-zinc-500 text-sm font-medium uppercase tracking-widest text-[10px]">Total</span>
                     <span className="text-zinc-900 font-bold text-lg font-mono">₹{selectedOrder.price}</span>
                   </div>
+
+                  {/* Cancel / Delete actions */}
+                  {orderActionMsg && (
+                    <div className={`mb-3 px-3 py-2 rounded-lg text-xs font-medium ${
+                      orderActionMsg.type === 'success'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      {orderActionMsg.text}
+                    </div>
+                  )}
+                  {selectedOrder.status !== 'Served' && selectedOrder.status !== 'cancelled' && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => cancelOrderById(selectedOrder.id)}
+                        disabled={deletingOrder}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <XCircle size={12} /> Cancel Order
+                      </button>
+                      <button
+                        onClick={() => deleteOrderById(selectedOrder.id)}
+                        disabled={deletingOrder}
+                        className="flex items-center justify-center gap-1 px-3 py-1.5 border border-red-300 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { apiFetch } from '../config'
-import { ChefHat, Clock, AlertTriangle, Flame, Play, CheckCheck } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { apiFetch, AI_SERVICE_ADMIN_WS } from '../config'
+import { ChefHat, Clock, AlertTriangle, Flame, Play, CheckCheck, Bell } from 'lucide-react'
 
 const priorityStyle = {
   urgent: 'border-red-400 bg-red-50',
@@ -28,6 +28,8 @@ export default function KitchenDisplay() {
   const [kots, setKots] = useState([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState(null)
+  const [newOrderToast, setNewOrderToast] = useState(null) // { order_id, customer_name }
+  const adminWsRef = useRef(null)
 
   const fetchKots = () => {
     apiFetch('/kot/pending')
@@ -41,6 +43,38 @@ export default function KitchenDisplay() {
     const interval = setInterval(fetchKots, 15000)
     return () => clearInterval(interval)
   }, [])
+
+  // Real-time push via WebSocket — instant KOT refresh on new orders
+  useEffect(() => {
+    let ws
+    let reconnectTimer
+
+    const connect = () => {
+      ws = new WebSocket(AI_SERVICE_ADMIN_WS)
+      adminWsRef.current = ws
+
+      ws.onmessage = (raw) => {
+        let msg
+        try { msg = JSON.parse(raw.data) } catch { return }
+        if (msg.event === 'order_confirmed') {
+          // Immediately pull latest KOTs
+          fetchKots()
+          const d = msg.data || {}
+          const name = d.customer_name || d.placed_by || ''
+          setNewOrderToast({ order_id: d.order_id, customer_name: name })
+          setTimeout(() => setNewOrderToast(null), 4000)
+        }
+      }
+      ws.onerror  = () => {}
+      ws.onclose  = () => { reconnectTimer = setTimeout(connect, 3000) }
+    }
+
+    connect()
+    return () => {
+      clearTimeout(reconnectTimer)
+      try { ws?.close() } catch {}
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateStatus = async (kotId, newStatus) => {
     setUpdatingId(kotId)
@@ -67,13 +101,23 @@ export default function KitchenDisplay() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
+      {/* New-order toast */}
+      {newOrderToast && (
+        <div className="fixed top-5 right-5 z-50 flex items-center gap-3 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl animate-fade-in">
+          <Bell size={16} className="animate-bounce" />
+          <span className="font-semibold text-sm">
+            New Order #{newOrderToast.order_id}
+            {newOrderToast.customer_name ? ` — ${newOrderToast.customer_name}` : ''}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-surface-900 flex items-center gap-2">
             <ChefHat size={24} className="text-primary-600" />
             Kitchen Display
           </h1>
-          <p className="text-surface-400 text-sm mt-0.5">Live KOT queue — auto-refreshes every 15s</p>
+          <p className="text-surface-400 text-sm mt-0.5">Live KOT queue — real-time WebSocket + 15s poll</p>
         </div>
         <div className="flex gap-3">
           <div className="card px-4 py-2 flex items-center gap-2">

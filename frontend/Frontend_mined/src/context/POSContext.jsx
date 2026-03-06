@@ -27,6 +27,7 @@ export const POSProvider = ({ children }) => {
         type: o.channel === 'dine_in' ? 'Dine-in' : o.channel === 'delivery' ? 'Delivery' : 'Takeaway',
         createdAt: o.placed_at ? new Date(o.placed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '',
         details: (o.items || []).filter(i => i.item_name).map(i => ({
+            line_id: i.line_id,
             name: i.variant_name ? `${i.item_name} (${i.variant_name})` : i.item_name,
             mods: i.special_instructions ? [i.special_instructions] : [],
             price: parseFloat(i.revenue || i.unit_price * i.qty),

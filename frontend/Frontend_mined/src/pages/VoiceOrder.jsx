@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Mic,
   MicOff,
@@ -6,566 +6,758 @@ import {
   CheckCircle2,
   ShoppingCart,
   RotateCcw,
-  Zap,
-  Languages,
-  X,
-  AlertCircle,
+  Phone,
+  PhoneOff,
+  Send,
   Volume2,
+  Loader2,
+  AlertCircle,
+  PhoneCall,
   MessageSquare,
-  Timer,
-  UtensilsCrossed,
-  Leaf,
+  User,
+  Bot,
 } from 'lucide-react'
-import { API_URL } from '../config'
-
-const SUPPORTED_LANGS = [
-  { code: 'en', label: 'English' },
-  { code: 'hi', label: 'Hindi' },
-  { code: 'ta', label: 'Tamil' },
-  { code: 'te', label: 'Telugu' },
-]
-
-function formatCart(cart) {
-  return (cart || []).map((item, i) => ({
-    ...item,
-    _key: `${item.product_id}-${i}`,
-  }))
-}
+import { apiFetch, AI_SERVICE_WS, AI_SERVICE_ADMIN_WS } from '../config'
 
 export default function VoiceOrder() {
-  // --- state ---
-  const [recording, setRecording]             = useState(false)
-  const [processing, setProcessing]           = useState(false)
-  const [transcript, setTranscript]           = useState('')
-  const [responseText, setResponseText]       = useState('')
-  const [cart, setCart]                       = useState([])
-  const [cartTotal, setCartTotal]             = useState('₹0')
-  const [cartEvents, setCartEvents]           = useState([])
-  const [upsellChips, setUpsellChips]         = useState([])
-  const [clarification, setClarification]     = useState(null)
-  const [activeCombos, setActiveCombos]       = useState([])
-  const [orderNumber, setOrderNumber]         = useState(null)
-  const [confirmed, setConfirmed]             = useState(false)
-  const [confirming, setConfirming]           = useState(false)
-  const [language, setLanguage]               = useState('en')
-  const [tableId, setTableId]                 = useState('T1')
-  const [error, setError]                     = useState(null)
-  const [playingAudio, setPlayingAudio]       = useState(false)
-  const [intent, setIntent]                   = useState(null)
-  const [timings, setTimings]                 = useState(null)
-  const [upsellSuggestion, setUpsellSuggestion] = useState(null)
-  const [turn, setTurn]                       = useState(0)
-  const [menuCategories, setMenuCategories]   = useState([])
-  const [menuLoading, setMenuLoading]         = useState(true)
-  const [lastResponse, setLastResponse]       = useState(null)
-  const [showRawJson, setShowRawJson]         = useState(false)
+  // ── Connection state ──
+  const [connected, setConnected] = useState(false)
+  const [sessionId, setSessionId] = useState(null)
+  const [error, setError] = useState(null)
 
-  // --- refs ---
-  const sessionIdRef    = useRef(null)
-  const mediaRecRef     = useRef(null)
-  const chunksRef       = useRef([])
-  const audioRef        = useRef(new Audio())
+  // ── Phone call state ──
+  const [phoneCallActive, setPhoneCallActive] = useState(false)
+  const [phoneCaller, setPhoneCaller] = useState(null)
 
-  // Generate session ID once per page load
+  // ── Conversation state ──
+  const [messages, setMessages] = useState([])
+  const [recording, setRecording] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const [textInput, setTextInput] = useState('')
+
+  // ── Order state (from ai_service session) ──
+  const [order, setOrder] = useState({ items: [], total: 0 })
+  const [confirmed, setConfirmed] = useState(false)
+  const [confirmResult, setConfirmResult] = useState(null)
+  const [cartFlash, setCartFlash] = useState(false)
+
+  // ── AI metrics ──
+  const [metrics, setMetrics] = useState({})
+
+  // ── Name-capture modal (triggered after phone order_confirmed) ──
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [capturedName, setCapturedName]   = useState('')
+  const [pendingConfirmData, setPendingConfirmData] = useState(null)
+  const [confirmingOrder, setConfirmingOrder]       = useState(false)
+
+  // ── Refs ──
+  const wsRef = useRef(null)
+  const adminWsRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const chatEndRef = useRef(null)
+  const audioContextRef = useRef(null)
+
+  // Auto-scroll chat
   useEffect(() => {
-    sessionIdRef.current = crypto.randomUUID()
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, processing])
+
+  // ── Cleanup on unmount ──
+  useEffect(() => {
     return () => {
-      if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') {
-        mediaRecRef.current.stop()
+      if (wsRef.current) {
+        try { wsRef.current.close() } catch {}
+      }
+      if (adminWsRef.current) {
+        try { adminWsRef.current.close() } catch {}
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop() } catch {}
       }
     }
   }, [])
 
-  // Fetch menu on mount
+  // ── Subscribe to phone-call broadcasts from /ws/admin ──
+  // This is separate from the browser-demo WS (/ws/conversation).
+  // All Twilio phone call events arrive here as { event, data, timestamp }.
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    fetch(`${API_URL}/voice/menu`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(data => setMenuCategories(data.categories || []))
-      .catch(() => setMenuCategories([]))
-      .finally(() => setMenuLoading(false))
+    let ws
+    let reconnectTimer
+
+    const connect = () => {
+      ws = new WebSocket(AI_SERVICE_ADMIN_WS)
+      adminWsRef.current = ws
+
+      ws.onmessage = (rawEvt) => {
+        let msg
+        try { msg = JSON.parse(rawEvt.data) } catch { return }
+
+        const evType = msg.event
+        const data   = msg.data || {}
+
+        if (evType === 'call_started') {
+          setPhoneCallActive(true)
+          setPhoneCaller(data.caller || 'Unknown')
+          // Show incoming call banner in chat
+          setMessages(prev => [...prev, {
+            role: 'system',
+            text: `📞 Incoming call from ${data.caller || 'unknown number'}`,
+            ts:   Date.now(),
+          }])
+          // Reset order/confirmed for the new call
+          setOrder({ items: [], total: 0 })
+          setConfirmed(false)
+          setConfirmResult(null)
+        }
+
+        if (evType === 'transcript_received' && data.transcript) {
+          setMessages(prev => [...prev, {
+            role: 'user',
+            text: data.transcript,
+            ts:   Date.now(),
+          }])
+        }
+
+        if (evType === 'response_generated') {
+          if (data.transcript) {
+            setMessages(prev => [...prev, {
+              role: 'user',
+              text: data.transcript,
+              ts:   Date.now(),
+            }])
+          }
+          if (data.response_text) {
+            setMessages(prev => [...prev, {
+              role:  'agent',
+              text:  data.response_text,
+              ts:    Date.now(),
+            }])
+          }
+          // Live cart update as items accumulate during the call
+          if (data.order && Array.isArray(data.order.items) && data.order.items.length > 0) {
+            setOrder(data.order)
+            setCartFlash(true)
+            setTimeout(() => setCartFlash(false), 800)
+          }
+          // Propagate language metric if present
+          if (data.language) {
+            setMetrics(prev => ({ ...prev, language: data.language }))
+          }
+        }
+
+        if (evType === 'order_confirmed') {
+          // Final confirmed order — use items/total directly from broadcast
+          const items = Array.isArray(data.items) ? data.items : (data.order?.items || [])
+          const total = data.total ?? data.order?.total ?? 0
+          setOrder({ items, total })
+          setPhoneCallActive(false)
+          setMessages(prev => [...prev, {
+            role: 'system',
+            text: `✅ Order confirmed — ₹${typeof total === 'number' ? total.toFixed(2) : total}`,
+            ts:   Date.now(),
+          }])
+          // For phone calls: show name-capture modal before sending to DB
+          // For browser demo: auto-confirm (the user can click Confirm Order button)
+          if (data.channel === 'phone' || phoneCaller) {
+            setPendingConfirmData({ items, total, customer_name: data.customer_name || '', phone: data.phone || phoneCaller || '' })
+            setCapturedName(data.customer_name || '')
+            setShowNameModal(true)
+          } else {
+            setConfirmed(true)
+            setConfirmResult({ success: true, message: 'Order placed!' })
+          }
+        }
+
+        if (evType === 'call_ended') {
+          setPhoneCallActive(false)
+          setMessages(prev => [...prev, {
+            role: 'system',
+            text: '📴 Call ended',
+            ts:   Date.now(),
+          }])
+        }
+      }
+
+      ws.onerror = () => {}
+      ws.onclose = () => {
+        // Auto-reconnect after 3 s so a service restart doesn't drop updates
+        reconnectTimer = setTimeout(connect, 3000)
+      }
+    }
+
+    connect()
+    return () => {
+      clearTimeout(reconnectTimer)
+      try { ws?.close() } catch {}
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Play audio from base64 (WAV or MP3) ──
+  const playAudio = useCallback((base64Audio, audioFormat) => {
+    if (!base64Audio) return
+    try {
+      const bytes = Uint8Array.from(atob(base64Audio), c => c.charCodeAt(0))
+      const mime = audioFormat === 'mp3' ? 'audio/mpeg' : 'audio/wav'
+      const blob = new Blob([bytes], { type: mime })
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      audio.onended = () => URL.revokeObjectURL(url)
+      audio.play().catch(() => {})
+    } catch (e) {
+      console.warn('Audio playback failed:', e)
+    }
   }, [])
 
-  // --- audio playback helper ---
-  const playAudioBase64 = useCallback((base64, mime = 'audio/wav') => {
-    const audio = audioRef.current
-    audio.src = `data:${mime};base64,${base64}`
-    audio.onplay  = () => setPlayingAudio(true)
-    audio.onended = () => setPlayingAudio(false)
-    audio.onerror = () => setPlayingAudio(false)
-    audio.play().catch(() => setPlayingAudio(false))
-  }, [])
-
-  // --- start recording ---
-  const startRecording = useCallback(async () => {
+  // ── Start Call: connect WebSocket ──
+  const startCall = useCallback(async () => {
     setError(null)
+    setMessages([])
+    setOrder({ items: [], total: 0 })
+    setConfirmed(false)
+    setConfirmResult(null)
+    setMetrics({})
+
+    try {
+      const ws = new WebSocket(AI_SERVICE_WS)
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'start' }))
+      }
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data)
+
+        if (msg.type === 'session_started') {
+          setSessionId(msg.session_id)
+          setConnected(true)
+          setMessages([{
+            role: 'agent',
+            text: msg.message || 'Call started. Speak or type your order!',
+            ts: Date.now(),
+          }])
+        }
+
+        if (msg.type === 'response') {
+          setProcessing(false)
+
+          // If there's a transcript (from audio), update the pending user message
+          if (msg.transcript) {
+            setMessages(prev => {
+              const updated = [...prev]
+              // Find the last pending user message and replace it
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].role === 'user' && updated[i].pending) {
+                  updated[i] = { ...updated[i], text: msg.transcript, pending: false }
+                  break
+                }
+              }
+              return updated
+            })
+          }
+
+          // Add agent response to chat (text arrives instantly)
+          setMessages(prev => [...prev, {
+            role: 'agent',
+            text: msg.agent_text,
+            ts: Date.now(),
+          }])
+
+          // Update order from session
+          if (msg.order && msg.order.items && msg.order.items.length > 0) {
+            setOrder(msg.order)
+          }
+
+          // Update metrics
+          setMetrics(prev => ({
+            ...prev,
+            language: msg.language || prev.language,
+            turnNumber: msg.turn_number,
+            lastDuration: msg.duration_ms,
+          }))
+
+          // Play audio if included (backward compat)
+          if (msg.audio_base64) {
+            playAudio(msg.audio_base64, msg.audio_format)
+          }
+        }
+
+        // Audio arrives separately (after text for faster perceived response)
+        if (msg.type === 'audio_ready') {
+          if (msg.audio_base64) {
+            playAudio(msg.audio_base64, msg.audio_format)
+          }
+        }
+
+        if (msg.type === 'session_ended') {
+          setConnected(false)
+          setMessages(prev => [...prev, {
+            role: 'system',
+            text: 'Call ended.',
+            ts: Date.now(),
+          }])
+        }
+
+        if (msg.type === 'error') {
+          setProcessing(false)
+          setError(msg.message)
+        }
+      }
+
+      ws.onerror = () => {
+        setError('WebSocket connection failed. Is ai_service running on port 8001?')
+        setConnected(false)
+      }
+
+      ws.onclose = () => {
+        setConnected(false)
+      }
+    } catch (e) {
+      setError('Could not connect: ' + e.message)
+    }
+  }, [playAudio])
+
+  // ── End Call ──
+  const endCall = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'end' }))
+      wsRef.current.close()
+    }
+    setConnected(false)
+    setRecording(false)
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+  }, [])
+
+  // ── Toggle Mic: start/stop recording ──
+  const toggleMic = useCallback(async () => {
+    if (recording) {
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop()
+      }
+      setRecording(false)
+      return
+    }
+
+    // Start recording
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm')
-          ? 'audio/webm'
-          : 'audio/ogg'
+      const recorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      })
+      mediaRecorderRef.current = recorder
+      audioChunksRef.current = []
 
-      const rec = new MediaRecorder(stream, { mimeType })
-      chunksRef.current = []
-      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-      rec.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(chunksRef.current, { type: mimeType })
-        await sendAudio(blob, mimeType)
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
-      rec.start()
-      mediaRecRef.current = rec
+
+      recorder.onstop = async () => {
+        // Stop all tracks
+        stream.getTracks().forEach(t => t.stop())
+
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        if (blob.size < 100) return // Too small, ignore
+
+        // Convert to base64
+        const reader = new FileReader()
+        reader.onload = () => {
+          const base64 = reader.result.split(',')[1]
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            setProcessing(true)
+            setMessages(prev => [...prev, {
+              role: 'user',
+              text: '🎤 (speaking...)',
+              ts: Date.now(),
+              pending: true,
+            }])
+            wsRef.current.send(JSON.stringify({
+              type: 'audio',
+              data: base64,
+            }))
+          }
+        }
+        reader.readAsDataURL(blob)
+      }
+
+      recorder.start()
       setRecording(true)
     } catch (e) {
-      setError('Microphone access denied. Please allow microphone permission.')
+      setError('Microphone access denied. Please allow microphone access.')
     }
-  }, [language, tableId])
+  }, [recording])
 
-  // --- stop recording ---
-  const stopRecording = useCallback(() => {
-    if (mediaRecRef.current && mediaRecRef.current.state === 'recording') {
-      mediaRecRef.current.stop()
-      setRecording(false)
-      setProcessing(true)
-    }
-  }, [])
+  // ── Send text message ──
+  const sendText = useCallback(() => {
+    const text = textInput.trim()
+    if (!text || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
 
-  // --- send audio to backend ---
-  const sendAudio = useCallback(async (blob, mimeType) => {
-    const token = localStorage.getItem('token')
-    const form  = new FormData()
-    form.append('audio',      blob, 'audio.webm')
-    form.append('session_id', sessionIdRef.current)
-    form.append('language',   language)
-    form.append('table_id',   tableId)
+    setMessages(prev => [...prev, { role: 'user', text, ts: Date.now() }])
+    setProcessing(true)
+    setTextInput('')
 
+    wsRef.current.send(JSON.stringify({ type: 'text', data: text }))
+  }, [textInput])
+
+  // ── Update user transcript when response arrives ──
+  useEffect(() => {
+    // When a response arrives, check if the last user message was a pending audio message
+    // and update it with the actual transcript
+    const lastAgent = [...messages].reverse().find(m => m.role === 'agent')
+    if (!lastAgent) return
+    // Messages are already handled by the response handler
+  }, [messages])
+
+  // ── Submit name + save order to DB (called from name-capture modal) ──
+  const submitNameAndSave = useCallback(async (skipName = false) => {
+    if (!pendingConfirmData) { setShowNameModal(false); return }
+    setConfirmingOrder(true)
     try {
-      const res = await fetch(`${API_URL}/voice/process-turn`, {
-        method:  'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body:    form,
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || `Server error ${res.status}`)
-      }
-      const data = await res.json()
-      applyTurnResult(data)
-    } catch (e) {
-      setError(e.message || 'Failed to process voice turn')
-    } finally {
-      setProcessing(false)
-    }
-  }, [language, tableId])
-
-  // --- apply response from voice-chat / add-item ---
-  const applyTurnResult = useCallback((data) => {
-    if (data.transcript)                              setTranscript(data.transcript)
-    if (data.response_text || data.response_display)  setResponseText(data.response_display || data.response_text)
-    if (Array.isArray(data.cart))  setCart(formatCart(data.cart))
-    if (data.cart_total)          setCartTotal(data.cart_total)
-    if (data.cart_events)         setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
-    if (data.upsell_chips)        setUpsellChips(data.upsell_chips)
-    if (data.active_combos)       setActiveCombos(data.active_combos)
-    if (data.order_number)        setOrderNumber(data.order_number)
-    setClarification(data.pending_clarification || null)
-    if (data.audio_base64)        playAudioBase64(data.audio_base64, data.audio_mime || 'audio/wav')
-    if (data.intent === 'confirm_order') setConfirmed(true)
-    if (data.intent)                setIntent(data.intent)
-    if (data.timings_ms)            setTimings(data.timings_ms)
-    setUpsellSuggestion(data.upsell_suggestion || null)
-    if (data.turn)                  setTurn(data.turn)
-    // Store raw response for debug panel (strip the large audio blob)
-    const { audio_base64: _omit, ...displayData } = data
-    setLastResponse(displayData)
-  }, [playAudioBase64])
-
-  // --- upsell chip click ---
-  const handleAddItem = useCallback(async (chip) => {
-    setError(null)
-    const token = localStorage.getItem('token')
-    try {
-      const res = await fetch(`${API_URL}/voice/add-item`, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      const result = await apiFetch('/voice/confirm-order', {
+        method: 'POST',
         body: JSON.stringify({
-          session_id: sessionIdRef.current,
-          product_id: chip.product_id,
-          item_name:  chip.item_name,
-          quantity:   1,
+          items: pendingConfirmData.items.map(i => ({
+            name: i.name,
+            quantity: i.quantity,
+            modifications: i.modifications || [],
+          })),
+          channel: 'phone',
+          customer_name: skipName ? '' : capturedName.trim(),
+          phone: pendingConfirmData.phone,
         }),
       })
-      if (!res.ok) throw new Error(`Add item failed ${res.status}`)
-      const data = await res.json()
-      setCart(formatCart(data.cart))
-      if (data.cart_total)  setCartTotal(data.cart_total)
-      if (data.cart_events) setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
-      if (data.upsell_chips) setUpsellChips(data.upsell_chips)
-      setUpsellChips(chips => chips.filter(c => c.product_id !== chip.product_id))
+      setConfirmResult(result)
+      setConfirmed(true)
+      setMessages(prev => [...prev, {
+        role: 'system',
+        text: `📋 Saved as Order #${result.order_id} for ${capturedName.trim() || 'Guest'}`,
+        ts: Date.now(),
+      }])
     } catch (e) {
-      setError(e.message)
+      setError('Could not save order: ' + e.message)
+    } finally {
+      setConfirmingOrder(false)
+      setShowNameModal(false)
+      setPendingConfirmData(null)
     }
-  }, [])
+  }, [pendingConfirmData, capturedName])
 
-  // --- confirm order button ---
-  const handleConfirm = useCallback(async () => {
-    setConfirming(true)
-    setError(null)
-    const token = localStorage.getItem('token')
+  // ── Confirm Order via backend (browser demo button) ──
+  const confirmOrder = useCallback(async () => {
+    if (!order.items || order.items.length === 0) return
+
     try {
-      const res = await fetch(`${API_URL}/voice/confirm-order`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ session_id: sessionIdRef.current }),
+      const result = await apiFetch('/voice/confirm-order', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: order.items.map(i => ({
+            name: i.name,
+            quantity: i.quantity,
+            modifications: i.modifications || [],
+          })),
+          channel: 'dine_in',
+        }),
       })
-      if (!res.ok) throw new Error(`Confirm failed ${res.status}`)
-      const data = await res.json()
-      setOrderNumber(data.order_number || null)
-      if (data.cart_events) setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
-      setCart([])
+      setConfirmResult(result)
       setConfirmed(true)
     } catch (e) {
-      setError(e.message)
-    } finally {
-      setConfirming(false)
+      setError('Order confirmation failed: ' + e.message)
     }
-  }, [])
+  }, [order])
 
-  // --- reset ---
+  // ── Reset everything ──
   const reset = useCallback(() => {
-    if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') {
-      mediaRecRef.current.stop()
-    }
-    audioRef.current.pause()
-    sessionIdRef.current = crypto.randomUUID()
-    setRecording(false)
-    setProcessing(false)
-    setTranscript('')
-    setResponseText('')
-    setCart([])
-    setCartTotal('₹0')
-    setCartEvents([])
-    setUpsellChips([])
-    setClarification(null)
-    setActiveCombos([])
-    setOrderNumber(null)
+    endCall()
+    setMessages([])
+    setOrder({ items: [], total: 0 })
     setConfirmed(false)
+    setConfirmResult(null)
+    setMetrics({})
     setError(null)
-    setPlayingAudio(false)
-    setIntent(null)
-    setTimings(null)
-    setUpsellSuggestion(null)
-    setTurn(0)
-    setLastResponse(null)
-    setShowRawJson(false)
-  }, [])
+    setSessionId(null)
+    setPhoneCallActive(false)
+    setPhoneCaller(null)
+    setShowNameModal(false)
+    setCapturedName('')
+    setPendingConfirmData(null)
+  }, [endCall])
 
-  // ---- derived ----
-  const micState = recording ? 'listening' : processing ? 'processing' : confirmed ? 'done' : 'idle'
+  const total = order.total || order.items?.reduce((s, i) => s + (i.subtotal || i.price * i.quantity || 0), 0) || 0
 
   return (
     <div className="p-6 animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-surface-900">Voice Ordering</h1>
-        <p className="text-surface-400 text-sm mt-0.5">AI-powered speech-to-order — Gemini Live</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-surface-900">Voice Ordering</h1>
+          <p className="text-surface-400 text-sm mt-0.5">
+            Gemini Live — Native Audio-in / Audio-out · Real-time DB menu
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {phoneCallActive && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full">
+              <PhoneCall size={13} className="text-emerald-600 animate-pulse" />
+              <span className="text-xs text-emerald-700 font-semibold">Active Call</span>
+              {phoneCaller && <span className="text-xs text-emerald-500">{phoneCaller}</span>}
+            </div>
+          )}
+          {connected && (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs text-emerald-600 font-medium">Live</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Error banner */}
       {error && (
-        <div className="mb-4 flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm animate-fade-in">
-          <AlertCircle size={14} className="shrink-0" />
+        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-center gap-2 text-red-700 text-sm">
+          <AlertCircle size={16} />
           {error}
-          <button onClick={() => setError(null)} className="ml-auto"><X size={14} /></button>
-        </div>
-      )}
-
-      {/* Clarification banner */}
-      {clarification && (
-        <div className="mb-4 flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm animate-fade-in">
-          <AlertCircle size={14} className="shrink-0" />
-          {clarification}
+          <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-700">×</button>
         </div>
       )}
 
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Left column */}
-        <div className="lg:col-span-2 space-y-5">
 
-          {/* Language + table selectors */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {SUPPORTED_LANGS.map(l => (
-              <button
-                key={l.code}
-                onClick={() => setLanguage(l.code)}
-                className={`text-xs px-3 py-1 rounded-full border font-medium transition-all
-                  ${language === l.code
-                    ? 'bg-primary-50 text-primary-600 border-primary-200'
-                    : 'text-surface-500 border-surface-200 bg-surface-50'}`}
-              >
-                <Languages size={11} className="inline mr-1" />
-                {l.label}
-              </button>
-            ))}
-            <input
-              value={tableId}
-              onChange={e => setTableId(e.target.value)}
-              placeholder="Table ID"
-              className="text-xs px-3 py-1 rounded-full border border-surface-200 bg-surface-50 text-surface-600 w-20 focus:outline-none focus:border-primary-300"
-            />
-          </div>
+        {/* ── Left column: Conversation ── */}
+        <div className="lg:col-span-2 space-y-4">
 
-          {/* Microphone */}
-          <div className="card p-8 flex flex-col items-center gap-6">
-            <div className="relative">
-              {micState === 'listening' && (
-                <>
-                  <div className="absolute inset-[-16px] rounded-full bg-red-500/10 animate-ping" style={{ animationDuration: '1.5s' }} />
-                  <div className="absolute inset-[-32px] rounded-full bg-red-500/5 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
-                </>
-              )}
-              <button
-                onClick={() => {
-                  if (micState === 'idle') startRecording()
-                  else if (micState === 'listening') stopRecording()
-                  else if (micState === 'done') reset()
-                }}
-                disabled={micState === 'processing' || confirmed}
-                className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-2xl
-                  ${micState === 'listening'
-                    ? 'bg-red-500 hover:bg-red-400 shadow-red-500/40 scale-110'
-                    : micState === 'done'
-                      ? 'bg-emerald-500 shadow-emerald-500/30'
-                      : micState === 'processing'
-                        ? 'bg-amber-500 shadow-amber-500/30 cursor-wait'
-                        : 'bg-primary-600 hover:bg-primary-700 shadow-red-btn hover:scale-105'}`}
-              >
-                {micState === 'processing' ? (
-                  <span className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" style={{ borderWidth: 3 }} />
-                ) : micState === 'done' ? (
-                  <CheckCircle2 size={28} className="text-white" />
-                ) : micState === 'listening' ? (
-                  <MicOff size={28} className="text-white" />
-                ) : (
-                  <Mic size={28} className="text-white" />
-                )}
-              </button>
-            </div>
-            <div className="text-center">
-              <p className="text-surface-900 font-semibold text-sm">
-                {micState === 'idle'       && 'Press to start voice ordering'}
-                {micState === 'listening'  && 'Listening… press again to stop'}
-                {micState === 'processing' && 'Processing with Gemini…'}
-                {micState === 'done'       && 'Order placed! Press to start new order'}
-              </p>
-              <p className="text-surface-400 text-xs mt-1 flex items-center justify-center gap-1">
-                {playingAudio && <><Volume2 size={11} className="text-primary-500 animate-pulse" /> Playing response…</>}
-                {!playingAudio && `Session: ${(sessionIdRef.current || '').slice(0, 8)}…`}
-              </p>
-            </div>
-          </div>
-
-          {/* Transcript + AI Response */}
-          {transcript && (
-            <div className="card p-4 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-surface-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <Zap size={11} className="text-primary-600" /> You said
+          {/* Browser demo call: Start/End controls */}
+          {!connected && (
+            <div className="card p-5 flex items-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center shadow-xl hover:bg-primary-700 hover:scale-105 transition-all cursor-pointer flex-shrink-0"
+                   onClick={startCall}>
+                <Phone size={24} className="text-white" />
+              </div>
+              <div>
+                <p className="text-surface-900 font-semibold text-sm">Browser Demo Call</p>
+                <p className="text-surface-400 text-xs mt-0.5">
+                  Click to start a web demo — or use a real phone call below
                 </p>
-                {intent && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-100 font-mono capitalize">
-                    {intent.replace(/_/g, ' ')}
-                  </span>
-                )}
               </div>
-              <div className="bg-surface-50 rounded-lg p-3 font-mono text-sm text-surface-700 border border-surface-200">
-                {transcript}
+            </div>
+          )}
+
+          {/* Live conversation panel — shown for browser call OR phone call */}
+          {(connected || phoneCallActive || messages.length > 0) && (
+            <>
+              {/* Chat messages */}
+              <div className="card overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-surface-100 flex items-center gap-2">
+                  <MessageSquare size={13} className="text-surface-400" />
+                  <span className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Conversation</span>
+                  {phoneCallActive && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-emerald-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                      Live
+                    </span>
+                  )}
+                </div>
+                <div className="p-4 max-h-[400px] overflow-y-auto space-y-3">
+                  {messages.length === 0 && (
+                    <p className="text-surface-400 text-sm text-center py-8">
+                      {phoneCallActive ? 'Waiting for customer to speak…' : 'Start a call to see the conversation here'}
+                    </p>
+                  )}
+                  {messages.map((msg, i) => (
+                    <div key={i} className={`flex items-end gap-2 ${
+                      msg.role === 'user' ? 'justify-end' : msg.role === 'system' ? 'justify-center' : 'justify-start'
+                    }`}>
+                      {msg.role === 'agent' && (
+                        <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 mb-0.5">
+                          <Bot size={12} className="text-primary-600" />
+                        </div>
+                      )}
+                      <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                        msg.role === 'user'
+                          ? 'bg-primary-600 text-white rounded-br-sm'
+                          : msg.role === 'system'
+                            ? 'bg-surface-100 text-surface-500 text-xs italic px-3 py-1.5 rounded-lg'
+                            : 'bg-surface-100 text-surface-800 rounded-bl-sm'
+                      }`}>
+                        {msg.role === 'agent' && (
+                          <span className="text-xs text-primary-500 font-semibold block mb-0.5 flex items-center gap-1">
+                            <Volume2 size={10} className="inline" /> Aria
+                          </span>
+                        )}
+                        {msg.role === 'user' && (
+                          <span className="text-xs text-primary-200 font-medium block mb-0.5 flex items-center gap-1">
+                            <User size={10} className="inline" /> Customer
+                          </span>
+                        )}
+                        {msg.text}
+                      </div>
+                      {msg.role === 'user' && (
+                        <div className="w-6 h-6 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0 mb-0.5">
+                          <User size={12} className="text-white" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {processing && (
+                    <div className="flex justify-start items-end gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center">
+                        <Bot size={12} className="text-primary-600" />
+                      </div>
+                      <div className="bg-surface-100 text-surface-500 px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm flex items-center gap-2">
+                        <Loader2 size={14} className="animate-spin" />
+                        Thinking…
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
               </div>
-              {responseText && (
-                <div className="bg-gradient-to-r from-primary-50 to-violet-50 rounded-lg p-3 border border-primary-100 flex items-start gap-2">
-                  <MessageSquare size={14} className="text-primary-500 mt-0.5 shrink-0" />
-                  <p className="text-sm text-surface-800 leading-relaxed">{responseText}</p>
+
+              {/* Browser call controls — only when connected via web */}
+              {connected && (
+                <div className="card p-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={toggleMic}
+                      disabled={processing}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg flex-shrink-0 ${
+                        recording
+                          ? 'bg-red-500 hover:bg-red-400 shadow-red-500/40 scale-110 animate-pulse'
+                          : 'bg-primary-600 hover:bg-primary-700 shadow-primary-500/30'
+                      } ${processing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {recording ? <MicOff size={20} className="text-white" /> : <Mic size={20} className="text-white" />}
+                    </button>
+                    <div className="flex-1 flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={textInput}
+                        onChange={e => setTextInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && sendText()}
+                        placeholder="Or type your order here..."
+                        disabled={processing}
+                        className="flex-1 bg-surface-50 border border-surface-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary-400 transition-colors"
+                      />
+                      <button
+                        onClick={sendText}
+                        disabled={!textInput.trim() || processing}
+                        className="w-10 h-10 rounded-lg bg-primary-600 text-white flex items-center justify-center hover:bg-primary-700 disabled:opacity-40 transition-all"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+                    <button
+                      onClick={endCall}
+                      className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center shadow-lg flex-shrink-0 transition-all"
+                      title="End call"
+                    >
+                      <PhoneOff size={18} className="text-white" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <p className="text-xs text-surface-400">
+                      {recording ? '🔴 Recording... click mic to stop' : 'Click mic to speak, or type below'}
+                    </p>
+                    {sessionId && <p className="text-xs text-surface-400">Session: {sessionId}</p>}
+                  </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Upsell chips */}
-          {upsellChips.length > 0 && (
-            <div className="card p-4 border-l-4 border-l-violet-500 bg-violet-50/50 animate-slide-up">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={14} className="text-violet-600" />
-                <p className="text-violet-600 text-sm font-semibold">AI Suggestions</p>
-              </div>
-              {upsellSuggestion && (
-                <p className="text-violet-700 text-xs mb-3 leading-relaxed">{upsellSuggestion}</p>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {upsellChips.map(chip => (
-                  <button
-                    key={chip.product_id}
-                    onClick={() => handleAddItem(chip)}
-                    className="text-xs px-3 py-1.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 hover:bg-violet-200 transition-colors"
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Active combo badges */}
-          {activeCombos.length > 0 && (
-            <div className="card p-4 border-l-4 border-l-emerald-400 animate-fade-in">
-              <p className="text-xs text-emerald-600 font-semibold mb-2">Active Combos</p>
-              <div className="flex flex-wrap gap-2">
-                {activeCombos.map((c, i) => (
-                  <span key={i} className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{c.description || c.name}</span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Event log */}
-          {cartEvents.length > 0 && (
-            <div className="card p-4 animate-fade-in">
-              <p className="text-xs text-surface-400 uppercase tracking-wider font-semibold mb-2">Cart Events</p>
-              <ul className="space-y-1">
-                {cartEvents.map((e, i) => (
-                  <li key={i} className="text-xs text-surface-600 flex items-center gap-1.5">
-                    <span className="w-1 h-1 rounded-full bg-primary-400 shrink-0" />
-                    {e}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Raw API Response */}
-          {lastResponse && (
-            <div className="card overflow-hidden animate-fade-in">
-              <button
-                onClick={() => setShowRawJson(v => !v)}
-                className="w-full px-4 py-3 flex items-center justify-between bg-surface-50 hover:bg-surface-100 transition-colors border-b border-surface-200"
-              >
-                <span className="text-xs font-semibold text-surface-600 uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap size={11} className="text-amber-500" />
-                  Raw API Response
-                  <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 text-[10px] font-mono">
-                    turn {lastResponse.turn}
-                  </span>
-                </span>
-                <span className="text-surface-400 text-xs">{showRawJson ? '▲ hide' : '▼ show'}</span>
-              </button>
-              {showRawJson && (
-                <pre className="p-4 text-[11px] leading-relaxed text-surface-700 bg-surface-950 overflow-x-auto max-h-[500px] overflow-y-auto font-mono whitespace-pre-wrap break-all" style={{ background: '#0f172a', color: '#94a3b8' }}>
-                  {JSON.stringify(lastResponse, null, 2)}
-                </pre>
-              )}
-            </div>
+            </>
           )}
         </div>
 
-        {/* Right column — order summary */}
+        {/* ── Right column: Order summary + Metrics ── */}
         <div className="space-y-4">
-          <div className="card overflow-hidden">
+          <div className={`card overflow-hidden transition-all duration-300 ${
+            cartFlash ? 'ring-2 ring-emerald-400 ring-offset-1' : ''
+          }`}>
             <div className="px-5 py-3.5 bg-surface-900 border-b border-surface-800 flex items-center gap-2">
               <ShoppingCart size={15} className="text-primary-400" />
               <span className="text-sm font-semibold text-white">Order Summary</span>
+              {cartFlash && (
+                <span className="ml-auto text-xs text-emerald-400 animate-pulse font-medium">Updated ✓</span>
+              )}
             </div>
 
             <div className="p-5">
-              {cart.length === 0 && !confirmed ? (
-                <p className="text-surface-400 text-sm text-center py-6">Start voice ordering to see items here</p>
-              ) : confirmed ? (
-                <div className="text-center py-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-2">
-                    <CheckCircle2 size={22} className="text-emerald-400" />
-                  </div>
-                  <p className="text-emerald-600 font-semibold text-sm">Order Confirmed!</p>
-                  {orderNumber && (
-                    <p className="text-surface-400 text-xs mt-1">Order #{orderNumber}</p>
-                  )}
-                  <p className="text-surface-400 text-xs mt-1">Sent to kitchen</p>
-                  <button onClick={reset} className="mt-3 btn-ghost text-xs flex items-center gap-1.5 mx-auto">
-                    <RotateCcw size={12} /> New Order
-                  </button>
-                </div>
+              {(!order.items || order.items.length === 0) ? (
+                <p className="text-surface-400 text-sm text-center py-6">
+                  {connected || phoneCallActive ? 'Speak your order to add items' : 'Start a call to begin ordering'}
+                </p>
               ) : (
                 <>
                   <div className="space-y-3 mb-4">
-                    {cart.map(item => {
-                      const modEntries = Object.entries(item.modifiers || {}).filter(
-                        ([k, v]) => k !== 'add_ons' && v
-                      )
-                      const addOns = item.modifiers?.add_ons || []
-                      return (
-                        <div key={item._key} className="flex items-start justify-between text-sm">
-                          <div className="flex-1 min-w-0">
+                    {order.items.map((item, i) => (
+                      <div key={i} className="flex items-start justify-between text-sm py-1 border-b border-surface-50 last:border-0">
+                        <div className="flex items-start gap-2">
+                          <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                            {item.quantity}
+                          </span>
+                          <div>
                             <p className="text-surface-900 font-medium">{item.name}</p>
-                            {item.variant_name && (
-                              <p className="text-surface-500 text-xs">{item.variant_name}</p>
-                            )}
-                            <p className="text-surface-400 text-xs">
-                              Qty: {item.quantity}
-                              {modEntries.map(([, v]) => ` · ${v}`).join('')}
-                            </p>
-                            {addOns.length > 0 && (
-                              <p className="text-surface-400 text-xs">{addOns.join(', ')}</p>
-                            )}
-                            {item.notes && (
-                              <p className="text-surface-400 text-xs italic">"{item.notes}"</p>
+                            {item.modifications?.length > 0 && (
+                              <p className="text-surface-400 text-xs">{item.modifications.join(', ')}</p>
                             )}
                           </div>
-                          <span className="text-surface-500 shrink-0 ml-2">
-                            Rs.{(item.unit_price * item.quantity).toFixed(0)}
-                          </span>
                         </div>
-                      )
-                    })}
+                        <span className="text-surface-600 font-semibold flex-shrink-0 ml-2">
+                          ₹{item.subtotal || (item.price * item.quantity) || 0}
+                        </span>
+                      </div>
+                    ))}
                   </div>
+
                   <div className="border-t border-dashed border-surface-200 pt-3 mb-4">
                     <div className="flex items-center justify-between">
                       <span className="text-surface-400 text-sm">Total</span>
-                      <span className="text-surface-900 font-bold text-lg">{cartTotal}</span>
+                      <span className="text-surface-900 font-bold text-lg">₹{total}</span>
                     </div>
                   </div>
-                  <button
-                    onClick={handleConfirm}
-                    disabled={confirming || cart.length === 0}
-                    className="btn-primary w-full py-2.5 text-sm disabled:opacity-50"
-                  >
-                    {confirming ? 'Confirming…' : 'Confirm Order'}
-                  </button>
+
+                  {!confirmed ? (
+                    <button
+                      onClick={confirmOrder}
+                      className="btn-primary w-full py-2.5 text-sm"
+                    >
+                      Confirm Order
+                    </button>
+                  ) : (
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-2">
+                        <CheckCircle2 size={22} className="text-emerald-400" />
+                      </div>
+                      <p className="text-emerald-600 font-semibold text-sm">Order Confirmed!</p>
+                      {confirmResult && (
+                        <p className="text-surface-400 text-xs mt-1">
+                          Order #{confirmResult.order_id} — ₹{confirmResult.total} — Sent to kitchen
+                        </p>
+                      )}
+                      <button
+                        onClick={reset}
+                        className="mt-3 btn-ghost text-xs flex items-center gap-1.5 mx-auto"
+                      >
+                        <RotateCcw size={12} /> New Order
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
           </div>
 
-          {/* AI metrics */}
-          {transcript && (
+          {/* Gemini panel */}
+          {(connected || phoneCallActive) && (
             <div className="card p-4 space-y-2 animate-fade-in">
-              <p className="text-xs text-surface-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                <Timer size={11} /> Session Info
+              <p className="text-xs text-surface-400 uppercase tracking-wider font-semibold flex items-center gap-1">
+                <Sparkles size={11} /> Gemini
               </p>
               {[
-                { label: 'Language', value: SUPPORTED_LANGS.find(l => l.code === language)?.label || language },
-                { label: 'Table',    value: tableId },
-                { label: 'Model',    value: 'Gemini Live' },
-                { label: 'Turn',     value: turn || '—' },
-                ...(timings ? [
-                  { label: 'Gemini',  value: `${timings.gemini_live_ms} ms` },
-                  { label: 'Extract', value: `${timings.extract_ms} ms` },
-                ] : []),
+                { label: 'Language', value: metrics.language || 'en' },
+                { label: 'Conversation Turn', value: metrics.turnNumber || 0 },
+                { label: 'Last Response', value: metrics.lastDuration ? `${(metrics.lastDuration / 1000).toFixed(1)}s` : '—' },
+                { label: 'Pipeline', value: 'Gemini Live' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-surface-400 text-xs">{label}</span>
@@ -574,56 +766,64 @@ export default function VoiceOrder() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
 
-          {/* Menu reference */}
-          <div className="card overflow-hidden">
-            <div className="px-5 py-3.5 bg-surface-50 border-b border-surface-200 flex items-center gap-2">
-              <UtensilsCrossed size={14} className="text-surface-500" />
-              <span className="text-sm font-semibold text-surface-700">Menu</span>
+      {/* ── Name-capture modal ── */}
+      {showNameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-7 w-full max-w-sm mx-4 animate-fade-in">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                <User size={18} className="text-primary-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-surface-900 text-base">Save Customer Details</h3>
+                <p className="text-surface-400 text-xs">Optional — for future reference</p>
+              </div>
             </div>
-            <div className="max-h-96 overflow-y-auto">
-              {menuLoading ? (
-                <p className="text-surface-400 text-xs text-center py-6">Loading menu…</p>
-              ) : menuCategories.length === 0 ? (
-                <p className="text-surface-400 text-xs text-center py-6">Menu unavailable</p>
-              ) : (
-                <div className="divide-y divide-surface-100">
-                  {menuCategories.map(cat => (
-                    <div key={cat.name} className="px-4 py-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-surface-400 mb-2">{cat.name}</p>
-                      <div className="space-y-2">
-                        {cat.items.map(item => (
-                          <div key={item.product_id} className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-1.5 min-w-0">
-                              {item.is_veg
-                                ? <Leaf size={10} className="text-emerald-500 mt-0.5 shrink-0" />
-                                : <span className="w-2.5 h-2.5 rounded-sm border border-red-500 mt-0.5 shrink-0 flex items-center justify-center"><span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>}
-                              <span className="text-xs text-surface-800 leading-tight">{item.name}</span>
-                            </div>
-                            <div className="text-right shrink-0">
-                              {item.variants && item.variants.length > 1 ? (
-                                <div className="space-y-0.5">
-                                  {item.variants.slice(0, 2).map(v => (
-                                    <p key={v.variant_id} className="text-[10px] text-surface-500">
-                                      {v.variant_name} <span className="text-surface-700 font-medium">₹{v.price.toFixed(0)}</span>
-                                    </p>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-xs font-medium text-surface-700">₹{item.price.toFixed(0)}</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+
+            {pendingConfirmData?.phone && (
+              <div className="mb-3 px-3 py-2 bg-surface-50 rounded-lg flex items-center gap-2">
+                <Phone size={13} className="text-surface-400" />
+                <span className="text-sm text-surface-700 font-medium">{pendingConfirmData.phone}</span>
+              </div>
+            )}
+
+            <label className="block text-xs font-semibold text-surface-500 mb-1">Customer Name</label>
+            <input
+              type="text"
+              value={capturedName}
+              onChange={e => setCapturedName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && submitNameAndSave()}
+              placeholder="e.g. Rahul Sharma"
+              autoFocus
+              className="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-primary-400 transition-colors mb-4"
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => submitNameAndSave(true)}
+                disabled={confirmingOrder}
+                className="flex-1 py-2 border border-surface-200 rounded-lg text-sm text-surface-500 hover:bg-surface-50 transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={() => submitNameAndSave(false)}
+                disabled={confirmingOrder}
+                className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                {confirmingOrder
+                  ? <Loader2 size={14} className="animate-spin" />
+                  : <CheckCircle2 size={14} />}
+                Save &amp; Confirm
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,0 +1,10 @@
+[startup] Connecting to database...
+[DB] Connection pool created.
+[startup] Cached 30 menu items, 0 tables from DB.
+[startup] ai_service_gemini ready  (Gemini Live API — audio-in/audio-out, no local ML models)
+INFO:     127.0.0.1:52402 - "POST /voice/order HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57854 - "POST /voice/order HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55624 - "POST /voice/order HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53164 - "POST /voice/order HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:55534 - "POST /voice/order HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:49227 - "POST /voice/order HTTP/1.1" 200 OK

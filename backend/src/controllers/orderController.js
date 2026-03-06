@@ -344,3 +344,115 @@ exports.updateStatus = async (req, res, next) => {
     next(err);
   }
 };
+
+// ── Cancel an order by ID (direct) ──────────────────────────────────────────
+exports.cancelById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await db.query(
+      `UPDATE orders SET status = 'cancelled', payment_status = 'refunded'
+       WHERE order_id = $1 AND status IN ('placed','preparing')
+       RETURNING order_id, total, status`,
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found or already completed/cancelled' });
+    }
+    await db.query("UPDATE kot SET status = 'ready' WHERE order_id = $1", [id]);
+    res.json({ success: true, order_id: parseInt(id, 10), status: 'cancelled' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Look up most recent order by phone number ────────────────────────────────
+exports.lookupByPhone = async (req, res, next) => {
+  try {
+    const { phone } = req.params;
+    const { rows } = await db.query(`
+      SELECT o.order_id, o.status, o.total, o.placed_at, o.channel,
+             json_agg(json_build_object(
+               'item_name', mi.name, 'variant', mv.variant_name,
+               'qty', oi.qty, 'unit_price', oi.unit_price
+             ) ORDER BY oi.line_id) AS items
+      FROM orders o
+      JOIN customers c ON c.customer_id = o.customer_id
+      LEFT JOIN order_items oi ON oi.order_id = o.order_id
+      LEFT JOIN menu_items mi ON mi.item_id = oi.item_id
+      LEFT JOIN menu_variants mv ON mv.variant_id = oi.variant_id
+      WHERE c.phone = $1 AND o.placed_at > NOW() - INTERVAL '24 hours'
+      GROUP BY o.order_id
+      ORDER BY o.placed_at DESC
+      LIMIT 5
+    `, [phone]);
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ── Update order items (qty change / remove line) ────────────────────────────
+exports.updateItems = async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    const { items } = req.body; // [{ line_id, qty }] — qty=0 removes the line
+    if (!items || !items.length) return res.status(400).json({ error: 'items array required' });
+
+    await client.query('BEGIN');
+
+    for (const { line_id, qty } of items) {
+      if (Number(qty) <= 0) {
+        await client.query('DELETE FROM order_items WHERE line_id=$1 AND order_id=$2', [line_id, id]);
+      } else {
+        await client.query(
+          'UPDATE order_items SET qty=$1, revenue=unit_price*$1 WHERE line_id=$2 AND order_id=$3',
+          [qty, line_id, id]
+        );
+      }
+    }
+
+    // Recalculate order totals
+    const { rows: [tot] } = await client.query(
+      `SELECT COALESCE(SUM(revenue),0) AS subtotal,
+              COALESCE(SUM(gst_amt),0)  AS tax_amt
+       FROM order_items WHERE order_id=$1`,
+      [id]
+    );
+    const newTotal = parseFloat(tot.subtotal) + parseFloat(tot.tax_amt);
+    await client.query(
+      'UPDATE orders SET subtotal=$1, tax_amt=$2, total=$3 WHERE order_id=$4',
+      [tot.subtotal, tot.tax_amt, newTotal, id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ order_id: parseInt(id, 10), total: newTotal, status: 'items_updated' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+};
+
+// ── Delete / cancel order (admin) ─────────────────────────────────────────────
+exports.deleteOrder = async (req, res, next) => {
+  const client = await db.pool.connect();
+  try {
+    const { id } = req.params;
+    await client.query('BEGIN');
+    await client.query("UPDATE orders SET status='cancelled' WHERE order_id=$1", [id]);
+    // Remove from kitchen display by closing any open KOTs
+    await client.query(
+      "UPDATE kot SET status='ready', completed_at=NOW() WHERE order_id=$1 AND status IN ('pending','preparing')",
+      [id]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, order_id: parseInt(id, 10) });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
+};

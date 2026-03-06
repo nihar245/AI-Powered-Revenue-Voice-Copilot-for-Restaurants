@@ -28,6 +28,7 @@ def _default(session_id: str, table_id: str = "") -> dict:
         "last_intent":  None,
         "last_response": "",
         "turn":         0,
+        "turns":        [],     # list[{"role":"user"|"agent","text":str}] — capped at 14 entries
         # ── Clarification state ──────────────────────────────────────────────
         "pending_clarification": None,   # str | None — question awaiting answer
         "pending_ambiguous_item": None,  # dict | None — item that triggered clarification
@@ -37,6 +38,8 @@ def _default(session_id: str, table_id: str = "") -> dict:
         "combos_shown":     [],     # list[str]  — combo names already announced
         # ── Order tracking ───────────────────────────────────────────────────
         "confirmed_order_number": None,  # str | None — last confirmed order number
+        # ── Customer info ────────────────────────────────────────────────────────
+        "customer_name": "",   # captured during call via [CMD: set_customer_name | <name>]
     }
 
 

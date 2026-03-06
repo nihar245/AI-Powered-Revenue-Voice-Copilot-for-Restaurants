@@ -73,6 +73,7 @@ class VoiceOrderResponse(BaseModel):
     cart:                  list[CartItem]
     response_text:         str
     session_id:            str
+    customer_name:         str                            = ""
     upsell_suggestion:     Optional[str]                   = None
     upsell_chips:          Optional[list[dict]]            = None
     pending_clarification: Optional[str]                   = None

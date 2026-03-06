@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+google-genai
+deepgram-sdk
+groq
+rapidfuzz
+edge-tts
+pytest
+pytest-asyncio
+python-multipart
+websockets
+httpx

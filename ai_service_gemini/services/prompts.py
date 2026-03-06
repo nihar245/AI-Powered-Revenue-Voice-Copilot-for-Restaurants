@@ -78,6 +78,7 @@ def build_live_system_instruction(
     pending_clarification: str | None = None,
     language: str = "en",
     table_id: str = "",
+    turns: list[dict] | None = None,
 ) -> str:
     """
     Build the full system instruction for a Gemini Live voice turn.
@@ -171,6 +172,20 @@ def build_live_system_instruction(
         f"even if the customer uses food words from another language.\n"
     )
 
+    # ── Conversation history section (cross-turn memory) ──────────────────────────────────────
+    history_section = ""
+    if turns:
+        recent = turns[-10:]  # last 5 customer+agent pairs
+        hist_lines = []
+        for t in recent:
+            role = "Customer" if t.get("role") == "user" else "Aria"
+            hist_lines.append(f"  {role}: {t.get('text', '')[:200]}")
+        history_section = (
+            "━━ CONVERSATION SO FAR (most recent last) ━━\n"
+            + "\n".join(hist_lines)
+            + "\n\n"
+        )
+
     return (
         "You are Aria, a warm, efficient multilingual restaurant voice ordering assistant.\n\n"
 
@@ -198,6 +213,9 @@ def build_live_system_instruction(
         "7. On VIEW_CART / bill questions, read the cart and total clearly.\n"
         "8. For modifier requests ('make it spicy', 'large size'), confirm the change.\n"
         "9. Never mention items not on the MENU below.\n"
+        "9b. CUSTOMER NAME: Before confirming the order, always ask the customer their name "
+        "    (e.g. 'May I have your name for the order?'). When they reply, emit "
+        "    [CMD: set_customer_name | <ExactSpokenName>] to record it.\n"
         "10. After adding an item, if there is an UPSELL OPPORTUNITY, mention it naturally.\n"
         "11. TOTAL: After every add / remove / modify, end your spoken response with\n"
         "    'Your total is ₹X.' using the subtotal in CURRENT ORDER below.\n"
@@ -228,6 +246,7 @@ def build_live_system_instruction(
 
         f"━━ TABLE ━━\n{table_label}\n\n"
         f"━━ MENU ━━\n{menu_text}\n\n"
+        f"{history_section}"
         f"━━ CURRENT ORDER ━━\n{cart_text}\n"
         f"{clarify_section}"
         f"{upsell_section}"

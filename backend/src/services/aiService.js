@@ -76,4 +76,17 @@ async function getMenu() {
   return resp.data;
 }
 
-module.exports = { voiceChat, addItem, confirmOrder, getMenu };
+// ── Generic HTTP helpers (used by voiceController for transcribe/intent/speak) ──
+// These proxy to ai_service on port 8001 (Deepgram STT + Groq LLM + Deepgram TTS)
+const VOICE_URL = process.env.VOICE_SERVICE_URL || 'http://127.0.0.1:8001';
+const _voiceHttp = axios.create({ baseURL: VOICE_URL, timeout: TIMEOUT });
+
+async function post(path, data, config = {}) {
+  return _voiceHttp.post(path, data, config);
+}
+
+async function get(path, config = {}) {
+  return _voiceHttp.get(path, config);
+}
+
+module.exports = { voiceChat, addItem, confirmOrder, getMenu, post, get };
