@@ -14,7 +14,6 @@ Flow per request
 
 from __future__ import annotations
 
-import asyncio
 import time
 import uuid
 
@@ -33,8 +32,6 @@ from services.audio.live import voice_turn
 from services.database.queries import (
     fetch_active_menu,
     generate_order_number,
-    get_default_terminal_id,
-    get_open_session_id,
     insert_order,
 )
 from services.dialogue.order_builder import get_cart_total
@@ -43,8 +40,6 @@ from services.llm.extract import extract_cart_update
 from services.prompts import build_live_system_instruction
 
 router = APIRouter()
-
-_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 # ─── Menu cache ───────────────────────────────────────────────────────────────
 _menu_cache:    list[dict] = []
@@ -118,17 +113,31 @@ async def voice_order(
                     (m for m in menu_items if str(m["product_id"]) == pid), None
                 )
                 if menu_item:
+                    mods     = item_data.get("modifiers") or {}
+                    variants = menu_item.get("variants", [])
+                    vid, vname, uprice, tax_r = None, None, float(menu_item.get("price", 0)), float(menu_item.get("tax", 5.0))
+                    if variants:
+                        size_hint = (mods.get("size") or mods.get("variant") or "").lower()
+                        chosen = next(
+                            (v for v in variants if size_hint and size_hint in v["variant_name"].lower()),
+                            variants[0],
+                        )
+                        vid, vname, uprice, tax_r = chosen["variant_id"], chosen["variant_name"], float(chosen["price"]), float(chosen["gst_pct"])
                     cart.append({
                         "product_id":   pid,
                         "name":         menu_item["name"],
                         "quantity":     qty,
-                        "unit_price":   float(menu_item["price"]),
-                        "tax_rate":     float(menu_item.get("tax", 5.0)),
-                        "variant_id":   None,
-                        "variant_name": None,
-                        "notes":        None,
+                        "unit_price":   uprice,
+                        "tax_rate":     tax_r,
+                        "variant_id":   vid,
+                        "variant_name": vname,
+                        "notes":        mods.get("notes"),
+                        "modifiers":    {k: v for k, v in mods.items() if v and k != "notes"} or None,
                     })
-                    cart_events.append(f"+{qty} {menu_item['name']}")
+                    label = f"+{qty} {menu_item['name']}"
+                    if vname:
+                        label += f" ({vname})"
+                    cart_events.append(label)
 
         update_session(session_id, {"cart": cart})
 
@@ -151,27 +160,17 @@ async def voice_order(
         subtotal, tax, total = get_cart_total(cart)
         new_state = DialogueState.PLACING_ORDER
 
-        pos_session_id, terminal_id = await asyncio.gather(
-            get_open_session_id(_SYSTEM_USER_ID),
-            get_default_terminal_id(),
+        order_number = await generate_order_number()
+        await insert_order(
+            order_number=order_number,
+            cart=cart,
+            subtotal=subtotal,
+            tax=tax,
+            total=total,
         )
-
-        if pos_session_id and terminal_id:
-            order_number = await generate_order_number()
-            await insert_order(
-                order_number=order_number,
-                table_id=table_id,
-                session_id=pos_session_id,
-                terminal_id=terminal_id,
-                user_id=_SYSTEM_USER_ID,
-                cart=cart,
-                subtotal=subtotal,
-                tax=tax,
-                total=total,
-            )
-            cart_events.append(f"Order #{order_number} placed — ₹{total:.0f}")
-            new_state = DialogueState.DONE
-            cart = []
+        cart_events.append(f"Order #{order_number} placed — ₹{total:.0f}")
+        new_state = DialogueState.DONE
+        cart = []
 
         update_session(session_id, {"cart": cart, "state": new_state})
 

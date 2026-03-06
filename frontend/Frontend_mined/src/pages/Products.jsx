@@ -27,7 +27,6 @@ function getQuadrant(rankPct, avgMargin) {
 export default function Products() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
-  const [ingredients, setIngredients] = useState([])
   const [analyticsMap, setAnalyticsMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -40,7 +39,7 @@ export default function Products() {
   const emptyForm = {
     name: '', description: '', category_id: '', is_veg: true, is_jain: false,
     tags: '', image_url: '',
-    variants: [{ variant_name: 'Regular', selling_price: '', gst_pct: 5, recipe: [] }],
+    variants: [{ variant_name: 'Regular', selling_price: '', gst_pct: 5, food_cost: '' }],
   }
   const [form, setForm] = useState(emptyForm)
 
@@ -49,12 +48,10 @@ export default function Products() {
     Promise.all([
       apiFetch('/products').catch(() => []),
       apiFetch('/products/categories').catch(() => []),
-      apiFetch('/products/ingredients').catch(() => []),
       apiFetch('/analytics/popularity-scoring').catch(() => []),
-    ]).then(([p, c, i, ps]) => {
+    ]).then(([p, c, ps]) => {
       setProducts(Array.isArray(p) ? p : [])
       setCategories(Array.isArray(c) ? c : [])
-      setIngredients(Array.isArray(i) ? i : [])
       const map = {}
       if (Array.isArray(ps)) ps.forEach(s => { map[s.item_id] = s })
       setAnalyticsMap(map)
@@ -87,7 +84,7 @@ export default function Products() {
           variant_name: v.variant_name,
           selling_price: String(v.selling_price),
           gst_pct: v.gst_pct,
-          recipe: (v.recipe || []).map(r => ({ ing_id: String(r.ing_id), qty_required: String(r.qty_required) })),
+          food_cost: String(v.food_cost ?? ''),
         })),
       })
       setEditId(id)
@@ -108,10 +105,7 @@ export default function Products() {
           variant_name: v.variant_name,
           selling_price: parseFloat(v.selling_price) || 0,
           gst_pct: parseFloat(v.gst_pct) || 5,
-          recipe: v.recipe.filter(r => r.ing_id && r.qty_required).map(r => ({
-            ing_id: parseInt(r.ing_id),
-            qty_required: parseFloat(r.qty_required),
-          })),
+          food_cost: parseFloat(v.food_cost) || 0,
         })),
       }
       if (editId) {
@@ -135,24 +129,9 @@ export default function Products() {
     } catch (e) { console.error(e) }
   }
 
-  const addVariant = () => setForm(f => ({ ...f, variants: [...f.variants, { variant_name: '', selling_price: '', gst_pct: 5, recipe: [] }] }))
+  const addVariant = () => setForm(f => ({ ...f, variants: [...f.variants, { variant_name: '', selling_price: '', gst_pct: 5, food_cost: '' }] }))
   const removeVariant = (vi) => setForm(f => ({ ...f, variants: f.variants.filter((_, i) => i !== vi) }))
   const updateVariant = (vi, field, val) => setForm(f => ({ ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, [field]: val } : v) }))
-
-  const addRecipeLine = (vi) => setForm(f => ({
-    ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, recipe: [...v.recipe, { ing_id: '', qty_required: '' }] } : v)
-  }))
-  const removeRecipeLine = (vi, ri) => setForm(f => ({
-    ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, recipe: v.recipe.filter((_, j) => j !== ri) } : v)
-  }))
-  const updateRecipeLine = (vi, ri, field, val) => setForm(f => ({
-    ...f, variants: f.variants.map((v, i) => i === vi ? { ...v, recipe: v.recipe.map((r, j) => j === ri ? { ...r, [field]: val } : r) } : v)
-  }))
-
-  const computeFoodCost = (recipe) => {
-    const ingMap = Object.fromEntries(ingredients.map(i => [i.ing_id, i.cost_per_unit]))
-    return recipe.reduce((sum, r) => sum + (ingMap[r.ing_id] || 0) * (parseFloat(r.qty_required) || 0), 0)
-  }
 
   const totalProducts = products.length
   const activeProducts = products.filter(p => p.is_available).length
@@ -170,7 +149,7 @@ export default function Products() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-surface-900">Products</h1>
-          <p className="text-surface-400 text-sm mt-0.5">Manage menu items, variants, recipes &amp; pricing</p>
+          <p className="text-surface-400 text-sm mt-0.5">Manage menu items, variants &amp; pricing</p>
         </div>
         <button onClick={() => { setForm(emptyForm); setEditId(null); setShowForm(true) }}
           className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors">
@@ -349,7 +328,7 @@ export default function Products() {
 
             {/* Variants */}
             <div className="mb-4 flex items-center justify-between">
-              <h4 className="font-semibold text-surface-900 text-sm">Variants &amp; Recipes</h4>
+              <h4 className="font-semibold text-surface-900 text-sm">Variants</h4>
               <button onClick={addVariant} className="flex items-center gap-1 text-xs text-primary-600 hover:text-primary-700 font-medium">
                 <Plus size={14} /> Add Variant
               </button>
@@ -357,7 +336,7 @@ export default function Products() {
 
             <div className="space-y-5">
               {form.variants.map((v, vi) => {
-                const foodCost = computeFoodCost(v.recipe)
+                const foodCost = parseFloat(v.food_cost) || 0
                 const sellingPrice = parseFloat(v.selling_price) || 0
                 const margin = sellingPrice > 0 ? Math.round(((sellingPrice - foodCost) / sellingPrice) * 100) : 0
                 const profit = (sellingPrice - foodCost).toFixed(2)
@@ -371,7 +350,7 @@ export default function Products() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
                       <div>
                         <label className="text-xs font-medium text-surface-600 block mb-1">Variant Name *</label>
                         <input type="text" value={v.variant_name} onChange={e => updateVariant(vi, 'variant_name', e.target.value)}
@@ -380,6 +359,11 @@ export default function Products() {
                       <div>
                         <label className="text-xs font-medium text-surface-600 block mb-1">Selling Price (₹) *</label>
                         <input type="number" min="0" step="any" value={v.selling_price} onChange={e => updateVariant(vi, 'selling_price', e.target.value)}
+                          className="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-surface-600 block mb-1">Food Cost (₹) *</label>
+                        <input type="number" min="0" step="any" value={v.food_cost} onChange={e => updateVariant(vi, 'food_cost', e.target.value)}
                           className="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300" placeholder="0" />
                       </div>
                       <div>
@@ -405,39 +389,6 @@ export default function Products() {
                       </div>
                     </div>
 
-                    {/* Recipe builder */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-surface-500">Recipe Ingredients</span>
-                        <button onClick={() => addRecipeLine(vi)} className="flex items-center gap-1 text-[11px] text-primary-600 hover:text-primary-700 font-medium">
-                          <Plus size={12} /> Add Ingredient
-                        </button>
-                      </div>
-                      {v.recipe.length === 0 ? (
-                        <p className="text-xs text-surface-400 italic">No ingredients added. Food cost will be ₹0.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {v.recipe.map((r, ri) => {
-                            const ing = ingredients.find(i => i.ing_id === parseInt(r.ing_id))
-                            const lineCost = ing ? (ing.cost_per_unit * (parseFloat(r.qty_required) || 0)).toFixed(2) : '0.00'
-                            return (
-                              <div key={ri} className="flex items-center gap-2">
-                                <select value={r.ing_id} onChange={e => updateRecipeLine(vi, ri, 'ing_id', e.target.value)}
-                                  className="flex-1 border border-surface-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-300">
-                                  <option value="">Select ingredient</option>
-                                  {ingredients.map(i => <option key={i.ing_id} value={i.ing_id}>{i.name} (₹{i.cost_per_unit}/{i.unit})</option>)}
-                                </select>
-                                <input type="number" min="0.001" step="any" value={r.qty_required} onChange={e => updateRecipeLine(vi, ri, 'qty_required', e.target.value)}
-                                  className="w-24 border border-surface-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary-300"
-                                  placeholder={ing ? ing.unit : 'qty'} />
-                                <span className="text-xs text-surface-500 w-16 text-right">₹{lineCost}</span>
-                                <button onClick={() => removeRecipeLine(vi, ri)} className="text-red-400 hover:text-red-600"><X size={12} /></button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 )
               })}

@@ -30,7 +30,7 @@ from config import settings
 _EXTRACT_PROMPT = """\
 You are a restaurant order parser. Extract structured data from the customer's spoken input.
 
-Customer said (transcription — may be romanised or in any script): "{transcript}"
+Customer said (transcription — may be in any language/script: English, Hindi, Tamil, Telugu, Gujarati, etc.): "{transcript}"
 AI assistant's spoken response (use as a reliable hint for what was understood): "{response_text}"
 
 Available menu items (ONLY use names from this list):
@@ -74,17 +74,8 @@ Rules:
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _is_garbled(text: str) -> bool:
-    """
-    Return True when the transcript is predominantly non-Latin script
-    (Gurmukhi, Devanagari, Arabic, CJK, etc.).
-    Happens when Gemini Live transcribes speech in the wrong script
-    despite the system instruction asking for Latin/English characters.
-    """
-    stripped = text.replace(" ", "")
-    if not stripped:
-        return True
-    non_latin = sum(1 for c in stripped if ord(c) > 0x024F)
-    return (non_latin / len(stripped)) > 0.25
+    """Return True when the transcript is completely empty or unparseable."""
+    return not text.strip()
 
 
 def _fuzzy_match_item(name: str, menu_items: list[dict]) -> dict | None:
@@ -156,22 +147,15 @@ async def extract_cart_update(
       "clarification_question": str | None,
     }
     """
-    # When transcript is blank or in a non-Latin script, fall back to
-    # parsing the AI's spoken response (which reliably reflects the order).
-    garbled = not transcript.strip() or _is_garbled(transcript)
+    # When transcript is blank, fall back to parsing the AI's spoken response.
+    garbled = not transcript.strip()
     if garbled and not response_text.strip():
         return _safe_default()
     if not settings.gemini_api_key:
         return _safe_default()
 
-    if garbled:
-        # The AI's response is the most reliable signal when transcript is bad.
-        # Swap: parse response_text as if it were the customer's input.
-        parse_text    = response_text.strip()
-        response_hint = "(original transcript was in a non-Latin script — not usable)"
-    else:
-        parse_text    = transcript.strip()
-        response_hint = response_text.strip() if response_text else "(not available)"
+    parse_text    = transcript.strip() if not garbled else response_text.strip()
+    response_hint = response_text.strip() if response_text else "(not available)"
 
     menu_names = " | ".join(item["name"] for item in menu_items)
     prompt = _EXTRACT_PROMPT.format(
@@ -185,7 +169,11 @@ async def extract_cart_update(
         resp = await client.aio.models.generate_content(
             model=settings.gemini_text_model,
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.0, max_output_tokens=512),
+            config=types.GenerateContentConfig(
+            temperature=0.0,
+            max_output_tokens=512,
+            response_mime_type="application/json",
+        ),
         )
         text = (resp.text or "").strip()
     except Exception:

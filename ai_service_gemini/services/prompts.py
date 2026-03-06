@@ -61,11 +61,23 @@ UPSELL_MAP: list[tuple[str, str]] = [
 ]
 
 
+_LANG_NAMES: dict[str, str] = {
+    "hi": "Hindi (हिन्दी)",
+    "ta": "Tamil (தமிழ்)",
+    "te": "Telugu (తెలుగు)",
+    "gu": "Gujarati (ગુજરાતી)",
+    "pa": "Punjabi (ਪੰਜਾਬੀ)",
+    "en": "English",
+}
+
+
 def build_live_system_instruction(
     menu_items: list[dict],
     cart: list[dict],
     upsell_suggestion: str | None = None,
     pending_clarification: str | None = None,
+    language: str = "en",
+    table_id: str = "",
 ) -> str:
     """
     Build the full system instruction for a Gemini Live voice turn.
@@ -79,10 +91,30 @@ def build_live_system_instruction(
     """
     # ── Menu section ──
     lines = []
-    for item in menu_items[:50]:
-        name  = item["name"]
-        price = item["price"]
-        lines.append(f"  {name} — ₹{price}")
+    for item in menu_items[:60]:
+        name     = item["name"]
+        variants = item.get("variants", [])
+        veg_tag  = "[V]" if item.get("is_veg", True) else "[NV]"
+        tags     = item.get("tags") or []
+        tag_str  = f" ★{','.join(tags)}" if tags else ""
+
+        if len(variants) > 1:
+            price_str = " / ".join(
+                f"{v['variant_name']} ₹{v['price']:.0f}" for v in variants
+            )
+        elif len(variants) == 1:
+            price_str = f"₹{variants[0]['price']:.0f}"
+        else:
+            price_str = f"₹{item.get('price', 0):.0f}"
+
+        addons = item.get("addons", [])
+        addon_hint = ""
+        if addons:
+            addon_hint = "  add-ons: " + ", ".join(
+                f"{a['addon_name']} +₹{a['price']:.0f}" for a in addons[:4]
+            )
+
+        lines.append(f"  {veg_tag} {name}{tag_str} — {price_str}{addon_hint}")
     menu_text = "\n".join(lines)
 
     # ── Cart section ──
@@ -127,19 +159,34 @@ def build_live_system_instruction(
     combo_lines = [f"  • {c['description']}" for c in COMBO_DEALS]
     combo_text = "\n".join(combo_lines)
 
+    # ── Table section ──
+    table_label = f"Table {table_id}" if table_id else "Walk-in / table not set"
+
+    # Language-specific instruction — applied for every language, including English
+    lang_name = _LANG_NAMES.get(language, "English")
+    lang_hint = (
+        f"• LANGUAGE LOCK: The customer's chosen language is {lang_name}. "
+        f"You MUST reply in {lang_name} ONLY. "
+        f"Do NOT switch to Hindi or any other language, "
+        f"even if the customer uses food words from another language.\n"
+    )
+
     return (
         "You are Aria, a warm, efficient multilingual restaurant voice ordering assistant.\n\n"
 
         "━━ LANGUAGE RULES ━━\n"
-        "• Always reply in EXACTLY the same language the customer used.\n"
-        "• English → English. Hindi → Hindi. Gujarati → Gujarati.\n"
-        "• Hinglish (mixed) → match the mix naturally.\n"
-        "• Never switch languages unless the customer does.\n"
-        "• TRANSCRIPTION: Always output the customer's speech as English Latin-script text\n"
-        "  (romanised/transliterated). NEVER use Devanagari, Gujarati, Gurmukhi, or any\n"
-        "  non-Latin script in the input transcription — even if the customer speaks Hindi,\n"
-        "  Gujarati, or Punjabi. Your own spoken response may be in any language, but the\n"
-        "  written transcription must always be readable English/Roman characters.\n\n"
+        "• Detect the language the customer is speaking and reply in EXACTLY that same language.\n"
+        "• English → English. Hindi → pure Hindi. Tamil → pure Tamil. Telugu → pure Telugu.\n"
+        f"{lang_hint}"
+        "• CRITICAL: When the customer speaks Hindi, Tamil, or Telugu — write your ENTIRE response\n"
+        "  in ONLY that language's native script. Do NOT use Roman letters for Hindi/Tamil/Telugu words.\n"
+        "  Hindi response → 100% Devanagari. Tamil response → 100% Tamil script. Telugu → 100% Telugu script.\n"
+        "• Never switch languages unless the customer does first.\n"
+        "• TRANSCRIPTION: Write the input transcription in the SAME script the customer spoke in.\n"
+        "  Hindi → Devanagari. Tamil → Tamil script. Telugu → Telugu script. English → Latin.\n"
+        "  Do NOT transliterate or romanise — preserve the native script so language detection works.\n"
+        "• OUTPUT TRANSCRIPTION: Your spoken response transcription must also be in the same native script\n"
+        "  — do NOT mix Devanagari+Latin or Tamil+Latin in the same response.\n\n"
 
         "━━ BEHAVIOUR RULES ━━\n"
         "1. Keep replies to 1–2 short, natural sentences. Be warm and restaurant-pace.\n"
@@ -153,12 +200,19 @@ def build_live_system_instruction(
         "7. On VIEW_CART / bill questions, read the cart and total clearly.\n"
         "8. For modifier requests ('make it spicy', 'large size'), confirm the change.\n"
         "9. Never mention items not on the MENU below.\n"
-        "10. After adding an item, if there is an UPSELL OPPORTUNITY, mention it naturally.\n\n"
+        "10. After adding an item, if there is an UPSELL OPPORTUNITY, mention it naturally.\n"
+        "11. TOTAL: After every add / remove / modify, end your spoken response with\n"
+        "    'Your total is ₹X.' using the subtotal in CURRENT ORDER below.\n"
+        "    Skip this line only when the cart is empty.\n"
+        "12. COMBO SAVINGS: Proactively scan CURRENT ORDER against AVAILABLE COMBO DEALS.\n"
+        "    If the cart fully or partially matches a combo, ALWAYS announce it without\n"
+        "    being asked: 'Add [item] to unlock the [Combo Name] and save ₹X!'\n\n"
 
         "━━ AVAILABLE COMBO DEALS ━━\n"
         f"{combo_text}\n"
         "  Mention a relevant combo if the customer's order qualifies.\n\n"
 
+        f"━━ TABLE ━━\n{table_label}\n\n"
         f"━━ MENU ━━\n{menu_text}\n\n"
         f"━━ CURRENT ORDER ━━\n{cart_text}\n"
         f"{clarify_section}"

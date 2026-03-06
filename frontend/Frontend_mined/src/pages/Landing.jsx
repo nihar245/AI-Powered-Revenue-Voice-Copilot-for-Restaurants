@@ -47,7 +47,7 @@ const Separator = ({ className, ...props }) => (
 
 // --- FRAME LOADING ---
 
-const frameModules = import.meta.glob("/src/assets/frames/*.jpg", { eager: true });
+const frameModules = import.meta.glob("../assets/frames/*.jpg", { eager: true });
 const frames = Object.entries(frameModules)
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([, module]) => module.default);

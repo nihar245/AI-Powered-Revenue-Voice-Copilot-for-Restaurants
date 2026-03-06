@@ -31,9 +31,6 @@ from services.database.queries import (
     fetch_active_menu,
     fetch_tables,
     generate_order_number,
-    get_default_table_id,
-    get_default_terminal_id,
-    get_open_session_id,
     insert_order,
 )
 from services.dialogue.order_builder import format_cart_total, get_cart_total
@@ -68,9 +65,6 @@ _FALLBACK_TABLES = [
     {"table_id": "demo-t3", "table_number": "T-3", "seats": 2, "status": "available"},
 ]
 
-_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
-
-
 def _get_menu(request: Request) -> list[dict]:
     """Return cached DB menu, falling back to hardcoded list if DB is down."""
     menu = getattr(request.app.state, "menu", [])
@@ -80,6 +74,35 @@ def _get_menu(request: Request) -> list[dict]:
 def _get_tables(request: Request) -> list[dict]:
     tables = getattr(request.app.state, "tables", [])
     return tables if tables else _FALLBACK_TABLES
+
+
+def _resolve_variant(
+    menu_item: dict, modifiers: dict | None
+) -> tuple[int | None, str | None, float, float]:
+    """
+    Pick the best variant for a menu item based on modifier hints.
+    Returns (variant_id, variant_name, unit_price, tax_rate).
+    Falls back to the first (cheapest) variant.
+    """
+    variants = menu_item.get("variants", [])
+    if not variants:
+        return None, None, float(menu_item.get("price", 0)), float(menu_item.get("tax", 5.0))
+
+    size_hint = ""
+    if modifiers:
+        size_hint = (
+            modifiers.get("size") or
+            modifiers.get("variant") or
+            modifiers.get("portion") or ""
+        ).lower()
+
+    if size_hint:
+        for v in variants:
+            if size_hint in v["variant_name"].lower():
+                return v["variant_id"], v["variant_name"], float(v["price"]), float(v["gst_pct"])
+
+    v = variants[0]
+    return v["variant_id"], v["variant_name"], float(v["price"]), float(v["gst_pct"])
 
 
 # ─── /test/ping ───────────────────────────────────────────────────────────────
@@ -122,11 +145,22 @@ async def get_menu(request: Request):
     grouped: dict[str, list] = {}
     for item in menu:
         cat = item.get("category_name") or item.get("category") or "Other"
+        variants = item.get("variants", [])
         grouped.setdefault(cat, []).append({
             "product_id": item["product_id"],
             "name":       item["name"],
             "price":      float(item["price"]),
             "tax":        float(item.get("tax", 0)),
+            "is_veg":     item.get("is_veg", True),
+            "tags":       item.get("tags") or [],
+            "variants":   [
+                {
+                    "variant_id":   v["variant_id"],
+                    "variant_name": v["variant_name"],
+                    "price":        float(v["price"]),
+                }
+                for v in variants
+            ],
         })
     return {
         "source":     "database" if get_pool() else "fallback",
@@ -196,6 +230,8 @@ async def voice_chat(
         cart                   = cart,
         upsell_suggestion      = session.get("pending_upsell"),
         pending_clarification  = pending_clarif,
+        language               = language,
+        table_id               = table_id,
     )
     t0 = time.perf_counter()
     turn = await voice_turn(audio_bytes, system_instr)
@@ -253,18 +289,22 @@ async def voice_chat(
             else:
                 mi = next((m for m in menu if str(m["product_id"]) == pid), None)
                 if mi:
+                    vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
                     cart.append({
                         "product_id":   pid,
                         "name":         mi["name"],
                         "quantity":     qty,
-                        "unit_price":   float(mi["price"]),
-                        "tax_rate":     float(mi.get("tax", 5.0)),
-                        "variant_id":   None,
-                        "variant_name": None,
-                        "notes":        mods.get("notes"),
-                        "modifiers":    {k: v for k, v in mods.items() if v} or None,
+                        "unit_price":   uprice,
+                        "tax_rate":     tax_r,
+                        "variant_id":   vid,
+                        "variant_name": vname,
+                        "notes":        mods.get("notes") if mods else None,
+                        "modifiers":    {k: v for k, v in mods.items() if v and k != "notes"} or None if mods else None,
                     })
-                    cart_events.append(f"+{qty}× {mi['name']}")
+                    label = f"+{qty}× {mi['name']}"
+                    if vname:
+                        label += f" ({vname})"
+                    cart_events.append(label)
 
         # Trigger upsell suggestion after adding items
         upsell_text = get_upsell_suggestion(cart, upsells_shown + combos_shown, menu)
@@ -306,14 +346,15 @@ async def voice_chat(
                     None,
                 )
                 if mi and not any(c["product_id"] == str(mi["product_id"]) for c in cart):
+                    vid, vname, uprice, tax_r = _resolve_variant(mi, None)
                     cart.append({
                         "product_id":   str(mi["product_id"]),
                         "name":         mi["name"],
                         "quantity":     1,
-                        "unit_price":   float(mi["price"]),
-                        "tax_rate":     float(mi.get("tax", 5.0)),
-                        "variant_id":   None,
-                        "variant_name": None,
+                        "unit_price":   uprice,
+                        "tax_rate":     tax_r,
+                        "variant_id":   vid,
+                        "variant_name": vname,
                         "notes":        None,
                         "modifiers":    None,
                     })
@@ -335,9 +376,8 @@ async def voice_chat(
     elif intent == Intent.CONFIRM_ORDER:
         if cart:
             subtotal, tax_total, grand_total = get_cart_total(cart)
-            order_summary = build_order_summary(cart, subtotal, tax_total, grand_total)
             try:
-                await _write_order_to_db(
+                order_number = await _write_order_to_db(
                     session_data=session,
                     table_id=table_id,
                     cart=cart,
@@ -346,13 +386,10 @@ async def voice_chat(
                     grand_total=grand_total,
                     cart_events=cart_events,
                 )
-                order_number = next(
-                    (e.split("#")[1].split(" ")[0] for e in cart_events if "#" in e),
-                    None,
-                )
             except Exception as exc:
                 logger.error("Order write failed: %s", exc)
-                cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (DB write failed)")
+                order_number = f"VO-{uuid.uuid4().hex[:6].upper()}"
+                cart_events.append(f"✅ Order #{order_number} confirmed — ₹{grand_total:.0f} (DB error)")
             cart = []
             new_pending_upsell = None
             new_clarification  = None
@@ -411,6 +448,7 @@ async def voice_chat(
         "audio_mime":            "audio/wav",
         "cart":                  cart,
         "cart_total":            f"₹{total:.0f}",
+        "cart_total_amount":     round(total, 2),
         "cart_events":           cart_events,
         "order_number":          order_number,
         "upsell_suggestion":     new_pending_upsell,
@@ -464,14 +502,15 @@ async def add_item_direct(
     if existing:
         existing["quantity"] += quantity
     else:
+        vid, vname, uprice, tax_r = _resolve_variant(mi, None)
         cart.append({
             "product_id":   product_id,
             "name":         mi["name"],
             "quantity":     quantity,
-            "unit_price":   float(mi["price"]),
-            "tax_rate":     float(mi.get("tax", 5.0)),
-            "variant_id":   None,
-            "variant_name": None,
+            "unit_price":   uprice,
+            "tax_rate":     tax_r,
+            "variant_id":   vid,
+            "variant_name": vname,
             "notes":        None,
             "modifiers":    None,
         })
@@ -533,44 +572,86 @@ async def _write_order_to_db(
     tax_total: float,
     grand_total: float,
     cart_events: list[str],
-) -> None:
+) -> str:
     """
-    Attempt to write a confirmed order to the database.
+    Write a confirmed order to the database.
     Appends a status string to cart_events.
-    Falls back to a demo message if DB is unavailable.
+    Returns the order_number (always, even in demo/fallback mode).
     """
     pool = get_pool()
     if pool is None:
-        cart_events.append(f"Order confirmed — ₹{grand_total:.0f} (demo mode, no DB)")
-        return
-
-    # Resolve IDs
-    tid = table_id or session_data.get("table_id") or await get_default_table_id()
-    pos_session_id = await get_open_session_id(_SYSTEM_USER_ID)
-    terminal_id    = await get_default_terminal_id()
-
-    if not (tid and pos_session_id and terminal_id):
-        missing = []
-        if not tid:            missing.append("table_id")
-        if not pos_session_id: missing.append("pos_session")
-        if not terminal_id:    missing.append("terminal_id")
-        cart_events.append(
-            f"Order confirmed — ₹{grand_total:.0f} "
-            f"(missing: {', '.join(missing)} — check DB setup)"
-        )
-        return
+        fallback_num = f"VO-{uuid.uuid4().hex[:6].upper()}"
+        cart_events.append(f"✅ Order #{fallback_num} confirmed — ₹{grand_total:.0f} (demo mode)")
+        return fallback_num
 
     order_num = await generate_order_number()
     await insert_order(
         order_number=order_num,
-        table_id=tid,
-        session_id=pos_session_id,
-        terminal_id=terminal_id,
-        user_id=_SYSTEM_USER_ID,
         cart=cart,
         subtotal=subtotal,
         tax=tax_total,
         total=grand_total,
     )
     cart_events.append(f"✅ Order #{order_num} placed — ₹{grand_total:.0f}")
-    logger.info("Order %s written to DB (table=%s, total=%.0f)", order_num, tid, grand_total)
+    logger.info("Order %s written to DB (total=%.0f)", order_num, grand_total)
+    return order_num
+
+
+# ─── /test/confirm-order (button-triggered from Node.js backend) ─────────────
+
+@router.post("/confirm-order")
+async def confirm_order_button(session_id: str = Form(...)):
+    """
+    Button-triggered order confirmation. Writes the cart to DB and clears the session.
+    Called by Node.js backend when the user presses the Confirm button in the UI.
+    """
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    cart = session.get("cart", [])
+    if not cart:
+        return {"order_number": None, "cart_events": ["Cart is empty"], "message": "Cart is empty"}
+
+    cart_events: list[str] = []
+    subtotal, tax_total, grand_total = get_cart_total(cart)
+
+    order_number = await _write_order_to_db(
+        session_data=session,
+        table_id=session.get("table_id", ""),
+        cart=cart,
+        subtotal=subtotal,
+        tax_total=tax_total,
+        grand_total=grand_total,
+        cart_events=cart_events,
+    )
+
+    update_session(session_id, {"cart": [], "last_intent": "confirm_order"})
+
+    return {
+        "order_number": order_number,
+        "cart_events":  cart_events,
+        "message":      f"Order confirmed — ₹{grand_total:.0f}",
+    }
+
+
+# ─── /test/session/{session_id} (read session state for Node.js proxy) ───────
+
+@router.get("/session/{session_id}")
+async def get_session_state(session_id: str):
+    """Return the current voice session state for a given session_id."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _, _, total = get_cart_total(session.get("cart", []))
+    return {
+        "session_id":            session_id,
+        "cart":                  session.get("cart", []),
+        "cart_total":            f"Rs.{total:.0f}",
+        "language":              session.get("language", "en"),
+        "turn":                  session.get("turn", 0),
+        "last_intent":           session.get("last_intent", ""),
+        "table_id":              session.get("table_id", ""),
+        "pending_clarification": session.get("pending_clarification"),
+        "pending_upsell":        session.get("pending_upsell"),
+    }

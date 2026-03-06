@@ -3,14 +3,15 @@ Database queries for ai_service_gemini.
 
 Rules:
  - Every query is pre-written here — no dynamic SQL from LLM output.
- - UUIDs are passed as strings; SQL casts them with ::uuid.
- - This service writes ONLY to: orders, order_items, kitchen_tickets.
+ - This service writes ONLY to: orders, order_items, kot, kot_items.
  - All other tables are read-only.
+
+Schema: uses the PetPooja restaurant schema (menu_items / menu_variants /
+menu_categories — NOT the old cafe-odoo products/categories schema).
 """
 
 from __future__ import annotations
 
-import json
 import uuid
 
 from fastapi import HTTPException
@@ -21,79 +22,106 @@ from services.database.connection import get_pool
 # ─── READ — Menu ─────────────────────────────────────────────────────────────
 
 async def fetch_active_menu() -> list[dict]:
-    """Returns every active product with category name, ordered by sequence."""
+    """
+    Returns every active menu item with all variants and addons.
+
+    Shape per item:
+      product_id    : str(item_id)   — used as product_id throughout the app
+      name          : str
+      price         : float          — default (first/cheapest) variant price
+      tax           : float          — default variant gst_pct
+      category_name : str
+      is_veg        : bool
+      tags          : list[str]
+      variants      : [{variant_id, variant_name, price, gst_pct, food_cost}]
+      addons        : [{addon_id, addon_name, price}]
+    """
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
+    # Fetch items+variants in one query
     rows = await pool.fetch("""
         SELECT
-            p.product_id::text,
-            p.name,
-            p.price,
-            p.unit,
-            p.tax,
-            p.description,
-            c.name AS category_name
-        FROM products p
-        JOIN categories c ON p.category_id = c.category_id
-        WHERE p.active = TRUE
-        ORDER BY c.sequence, p.name
+            mi.item_id,
+            mi.name,
+            mi.description,
+            mi.is_veg,
+            mi.tags,
+            mc.name AS category_name,
+            mv.variant_id,
+            mv.variant_name,
+            mv.selling_price,
+            mv.gst_pct,
+            mv.food_cost AS variant_food_cost
+        FROM menu_items mi
+        JOIN menu_categories mc ON mi.category_id = mc.category_id
+        LEFT JOIN menu_variants mv
+               ON mv.item_id = mi.item_id AND mv.is_available = TRUE
+        WHERE mi.is_available = TRUE AND mc.is_active = TRUE
+        ORDER BY mc.display_order, mi.display_order, mi.name, mv.selling_price
     """)
-    return [dict(r) for r in rows]
+
+    # Group variants per item (preserve insertion order → cheapest first)
+    items: dict[int, dict] = {}
+    for r in rows:
+        iid = r["item_id"]
+        if iid not in items:
+            items[iid] = {
+                "product_id":    str(iid),
+                "name":          r["name"],
+                "description":   r["description"] or "",
+                "is_veg":        r["is_veg"],
+                "tags":          list(r["tags"] or []),
+                "category_name": r["category_name"],
+                "variants":      [],
+                "price":         0.0,
+                "tax":           5.0,
+            }
+        if r["variant_id"] is not None:
+            items[iid]["variants"].append({
+                "variant_id":   r["variant_id"],
+                "variant_name": r["variant_name"],
+                "price":        float(r["selling_price"]),
+                "gst_pct":      float(r["gst_pct"]),
+                "food_cost":    float(r["variant_food_cost"]),
+            })
+
+    result = list(items.values())
+    # Default price/tax = cheapest available variant
+    for item in result:
+        if item["variants"]:
+            item["price"] = item["variants"][0]["price"]
+            item["tax"]   = item["variants"][0]["gst_pct"]
+
+    # Fetch addons in one query and attach
+    addon_rows = await pool.fetch("""
+        SELECT item_id, addon_id, addon_name, extra_price
+        FROM menu_addons
+        WHERE is_available = TRUE
+        ORDER BY addon_name
+    """)
+    addon_map: dict[int, list] = {}
+    for a in addon_rows:
+        addon_map.setdefault(a["item_id"], []).append({
+            "addon_id":   a["addon_id"],
+            "addon_name": a["addon_name"],
+            "price":      float(a["extra_price"]),
+        })
+    for item in result:
+        item["addons"] = addon_map.get(int(item["product_id"]), [])
+
+    return result
 
 
-# ─── READ — Tables / Sessions / Terminals ────────────────────────────────────
+# ─── READ — Tables ────────────────────────────────────────────────────────────
 
 async def fetch_tables() -> list[dict]:
-    """Returns all active tables ordered by table_number."""
-    pool = get_pool()
-    if pool is None:
-        return []
-    rows = await pool.fetch("""
-        SELECT table_id::text, table_number, seats, status
-        FROM tables
-        WHERE active = TRUE
-        ORDER BY table_number
-    """)
-    return [dict(r) for r in rows]
-
-
-async def get_default_table_id() -> str | None:
-    """Returns the table_id of the first active table (fallback for demo mode)."""
-    pool = get_pool()
-    if pool is None:
-        return None
-    row = await pool.fetchrow("""
-        SELECT table_id::text FROM tables WHERE active = TRUE LIMIT 1
-    """)
-    return row["table_id"] if row else None
-
-
-async def get_open_session_id(user_id: str) -> str | None:
-    pool = get_pool()
-    if pool is None:
-        return None
-    row = await pool.fetchrow("""
-        SELECT session_id::text
-        FROM pos_sessions
-        WHERE user_id = $1::uuid AND status = 'open'
-        LIMIT 1
-    """, user_id)
-    return row["session_id"] if row else None
-
-
-async def get_default_terminal_id() -> str | None:
-    pool = get_pool()
-    if pool is None:
-        return None
-    row = await pool.fetchrow("""
-        SELECT terminal_id::text
-        FROM pos_terminals
-        WHERE device_identifier = 'default-terminal'
-        LIMIT 1
-    """)
-    return row["terminal_id"] if row else None
+    """
+    This schema has no dedicated 'tables' table.
+    Returns empty list — seating capacity is on the restaurants row.
+    """
+    return []
 
 
 # ─── WRITE — Orders ──────────────────────────────────────────────────────────
@@ -102,75 +130,117 @@ async def generate_order_number() -> str:
     pool = get_pool()
     if pool is None:
         return f"VO-{uuid.uuid4().hex[:6].upper()}"
-    row = await pool.fetchrow("""
-        SELECT COUNT(*)::int AS cnt FROM orders WHERE source = 'self_order'
-    """)
+    row = await pool.fetchrow("SELECT COUNT(*)::int AS cnt FROM orders")
     count = (row["cnt"] or 0) + 1
     return f"VO-{count:04d}"
 
 
 async def insert_order(
     order_number: str,
-    table_id: str,
-    session_id: str,
-    terminal_id: str,
-    user_id: str,
     cart: list[dict],
     subtotal: float,
     tax: float,
     total: float,
-) -> str:
+    placed_by: str = "voice_order",
+    restaurant_id: int | None = None,
+) -> int:
+    """
+    Write a confirmed voice order to orders + order_items + kot + kot_items.
+
+    cart items are expected to have:
+      product_id  : str(item_id)
+      name        : str
+      quantity    : int
+      unit_price  : float
+      tax_rate    : float  (gst %)
+      variant_id  : int | None
+      notes       : str | None
+      modifiers   : dict | None
+    """
     pool = get_pool()
     if pool is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            order_id: uuid.UUID = await conn.fetchval("""
+
+            order_id: int = await conn.fetchval("""
                 INSERT INTO orders (
-                    order_number, table_id, session_id, terminal_id, user_id,
-                    subtotal, tax, total, status, source
+                    restaurant_id, placed_by, channel, status,
+                    placed_at, subtotal, discount_amt, tax_amt, total, payment_status
                 ) VALUES (
-                    $1,
-                    $2::uuid, $3::uuid, $4::uuid, $5::uuid,
-                    $6, $7, $8,
-                    'sent_to_kitchen', 'self_order'
+                    $1, $2, 'dine_in', 'placed',
+                    NOW(), $3, 0, $4, $5, 'pending'
                 )
                 RETURNING order_id
-            """, order_number,
-                table_id, session_id, terminal_id, user_id,
-                subtotal, tax, total)
+            """, restaurant_id, placed_by, subtotal, tax, total)
 
             for item in cart:
-                tax_amount  = item["unit_price"] * item["quantity"] * item["tax_rate"] / 100
-                total_price = item["unit_price"] * item["quantity"] + tax_amount
+                item_id    = int(item["product_id"])
+                variant_id = item.get("variant_id")
+                qty        = int(item.get("quantity", 1))
+                unit_price = float(item["unit_price"])
+                gst_pct    = float(item.get("tax_rate", 5.0))
+                gst_amt    = round(unit_price * qty * gst_pct / 100, 2)
+                revenue    = round(unit_price * qty, 2)
+
+                # Look up food_cost from variants table
+                food_cost = 0.0
+                if variant_id:
+                    fc_row = await conn.fetchrow(
+                        "SELECT food_cost FROM menu_variants WHERE variant_id = $1",
+                        int(variant_id),
+                    )
+                    if fc_row:
+                        food_cost = float(fc_row["food_cost"])
+
+                # Merge notes + modifiers into special_instructions
+                notes = item.get("notes") or ""
+                mods  = item.get("modifiers")
+                if mods:
+                    mod_str = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
+                    if mod_str:
+                        notes = f"{mod_str}. {notes}".strip(". ")
+
                 await conn.execute("""
                     INSERT INTO order_items (
-                        order_id, product_id, product_name,
-                        quantity, unit_price, tax_rate, tax_amount, total_price
-                    ) VALUES ($1, $2::uuid, $3, $4, $5, $6, $7, $8)
-                """, order_id,
-                    item["product_id"], item["name"],
-                    item["quantity"], item["unit_price"],
-                    item["tax_rate"], tax_amount, total_price)
+                        order_id, item_id, variant_id, qty,
+                        unit_price, discount_pct, revenue, food_cost,
+                        gst_amt, special_instructions, is_upsell
+                    ) VALUES (
+                        $1, $2, $3, $4,
+                        $5,  0,  $6, $7,
+                        $8,  $9, FALSE
+                    )
+                """, order_id, item_id,
+                    int(variant_id) if variant_id else None,
+                    qty, unit_price, revenue, food_cost,
+                    gst_amt, notes or None)
 
-            table_row = await conn.fetchrow("""
-                SELECT table_number FROM tables WHERE table_id = $1::uuid
-            """, table_id)
-            table_number = table_row["table_number"] if table_row else "?"
+            # Create KOT
+            kot_id: int = await conn.fetchval("""
+                INSERT INTO kot (order_id, status, priority, created_at)
+                VALUES ($1, 'pending', 'normal', NOW())
+                RETURNING kot_id
+            """, order_id)
 
-            await conn.execute("""
-                INSERT INTO kitchen_tickets (
-                    order_id, order_number, table_number, status
-                ) VALUES ($1, $2, $3, 'to_cook')
-            """, order_id, order_number, table_number)
+            for item in cart:
+                item_id    = int(item["product_id"])
+                variant_id = item.get("variant_id")
+                qty        = int(item.get("quantity", 1))
+                notes      = item.get("notes") or ""
+                mods       = item.get("modifiers")
+                addons_str = ""
+                if mods:
+                    addons_str = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
 
-            payload = json.dumps({
-                "order_id":     str(order_id),
-                "order_number": order_number,
-                "table_number": table_number,
-                "source":       "voice_order",
-            })
-            await conn.execute("SELECT pg_notify('new_order', $1)", payload)
+                await conn.execute("""
+                    INSERT INTO kot_items (
+                        kot_id, item_id, variant_id, qty,
+                        addons, special_instructions, status
+                    ) VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+                """, kot_id, item_id,
+                    int(variant_id) if variant_id else None,
+                    qty, addons_str or None, notes or None)
 
-    return str(order_id)
+    return order_id

@@ -19,6 +19,7 @@ No separate STT step. No separate TTS step. Everything is one Live session.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import logging
@@ -93,21 +94,25 @@ def to_pcm16k(audio_bytes: bytes) -> bytes:
 # ─── Language heuristic ───────────────────────────────────────────────────────
 
 def _detect_language(text: str) -> str:
-    """Heuristic: detect Hindi/Gujarati/Punjabi by Unicode range, else English."""
+    """Detect language from the native script of the transcript."""
     if not text:
         return "en"
-    devanagari = sum(1 for c in text if "\u0900" <= c <= "\u097F")
+    devanagari = sum(1 for c in text if "\u0900" <= c <= "\u097F")  # Hindi/Marathi
     gujarati   = sum(1 for c in text if "\u0A80" <= c <= "\u0AFF")
     gurmukhi   = sum(1 for c in text if "\u0A00" <= c <= "\u0A7F")  # Punjabi
-    if gujarati > 2:
-        return "gu"
-    if devanagari > 2:
-        return "hi"
-    if gurmukhi > 2:
-        # Gurmukhi transcript means Gemini mis-scripted it — treat as English
-        # (user likely spoke English; the script fix in the system instruction
-        #  prevents this from recurring after the first turn)
-        return "en"
+    tamil      = sum(1 for c in text if "\u0B80" <= c <= "\u0BFF")
+    telugu     = sum(1 for c in text if "\u0C00" <= c <= "\u0C7F")
+    # Pick the dominant non-ASCII script
+    scores = {
+        "hi": devanagari,
+        "gu": gujarati,
+        "pa": gurmukhi,
+        "ta": tamil,
+        "te": telugu,
+    }
+    best_lang, best_count = max(scores.items(), key=lambda x: x[1])
+    if best_count >= 3:
+        return best_lang
     return "en"
 
 
@@ -197,6 +202,22 @@ async def voice_turn(
 
                 if getattr(sc, "turn_complete", False):
                     break
+
+        # Gemini Live sometimes delivers the final input_transcription fragment
+        # AFTER turn_complete.  Drain with a short deadline to capture it.
+        async def _drain_late_transcript() -> None:
+            nonlocal input_transcript
+            async for late_resp in session.receive():
+                lsc = getattr(late_resp, "server_content", None)
+                if not lsc:
+                    break
+                in_tr = getattr(lsc, "input_transcription", None)
+                if in_tr:
+                    input_transcript += getattr(in_tr, "text", "") or ""
+        try:
+            await asyncio.wait_for(_drain_late_transcript(), timeout=0.8)
+        except Exception:
+            pass  # asyncio.TimeoutError or session already closed — both expected
 
     except HTTPException:
         raise
