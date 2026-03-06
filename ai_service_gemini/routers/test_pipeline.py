@@ -299,6 +299,16 @@ async def voice_chat(
             else:
                 mi = next((m for m in menu if str(m["product_id"]) == pid), None)
                 if mi:
+                    # If size modifier is 'unknown' and item has multiple variants,
+                    # hold for clarification instead of guessing the first variant.
+                    size_val = (mods.get("size") or mods.get("variant") or "").lower() if mods else ""
+                    has_variants = len(mi.get("variants", [])) > 1
+                    if size_val == "unknown" and has_variants:
+                        new_clarification = clarification_question or f"Which size would you like for {mi['name']}? Options: {', '.join(v['variant_name'] for v in mi['variants'])}"
+                        session["pending_ambiguous_item"] = {**item_data, "product_id": pid}
+                        cart_events.append(f"? Clarifying size for {mi['name']}")
+                        continue
+
                     vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
                     cart.append({
                         "product_id":   pid,
@@ -328,9 +338,24 @@ async def voice_chat(
             mods = item_data.get("modifiers") or {}
             target = next((c for c in cart if c["product_id"] == pid), None)
             if target and mods:
+                mi = next((m for m in menu if str(m["product_id"]) == pid), None)
+                # If a size/variant modifier is present, resolve to actual variant
+                size_val = (mods.get("size") or mods.get("variant") or "").lower()
+                if size_val and size_val != "unknown" and mi and mi.get("variants"):
+                    vid, vname, uprice, tax_r = _resolve_variant(mi, mods)
+                    target["variant_id"]   = vid
+                    target["variant_name"] = vname
+                    target["unit_price"]   = uprice
+                    target["tax_rate"]     = tax_r
+                # Update other modifiers and notes
                 target.setdefault("modifiers", {})
-                target["modifiers"].update({k: v for k, v in mods.items() if v})
-                target["notes"] = mods.get("notes", target.get("notes"))
+                non_variant_mods = {k: v for k, v in mods.items() if v and k not in ("size", "variant", "portion")}
+                if non_variant_mods:
+                    target["modifiers"].update(non_variant_mods)
+                if not target["modifiers"]:
+                    target["modifiers"] = None
+                if mods.get("notes"):
+                    target["notes"] = mods["notes"]
                 mod_desc = ", ".join(f"{k}={v}" for k, v in mods.items() if v)
                 cart_events.append(f"✏ {name} modified ({mod_desc})")
             else:
