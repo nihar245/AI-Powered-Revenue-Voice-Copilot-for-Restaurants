@@ -239,6 +239,7 @@ async def voice_chat(
     live_ms = round((time.perf_counter() - t0) * 1000)
 
     transcript       = turn["transcript"]
+    transcript_display = turn.get("transcript_display") or turn["transcript"]
     response_text    = turn["response_text"]
     response_display = turn.get("response_display") or response_text
     cmd_hint         = turn.get("cmd_hint", "")
@@ -449,8 +450,9 @@ async def voice_chat(
     return {
         "session_id":            session_id,
         "turn":                  turn_num,
-        "transcript":            transcript,
-        "clean_text":            transcript,
+        "transcript":            transcript_display,
+        "transcript_raw":        transcript,
+        "clean_text":            transcript_display,
         "language":              detected_lang,
         "intent":                intent.value,
         "response_text":         response_text,
