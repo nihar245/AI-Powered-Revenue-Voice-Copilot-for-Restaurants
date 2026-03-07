@@ -28,6 +28,8 @@ def _default(session_id: str, table_id: str = "") -> dict:
         "last_intent":  None,
         "last_response": "",
         "turn":         0,
+        # ── Customer info ────────────────────────────────────────────────────
+        "customer_name": None,  # str | None — collected during greeting turn
         # ── Clarification state ──────────────────────────────────────────────
         "pending_clarification": None,   # str | None — question awaiting answer
         "pending_ambiguous_item": None,  # dict | None — item that triggered clarification

@@ -26,4 +26,14 @@ router.get('/session/:session_id', vc.getSession);
 // Menu reference — proxies to ai_service_gemini /test/menu
 router.get('/menu', vc.getMenu);
 
+// Phone call logs — proxies to ai_service_gemini GET /twilio/call-logs
+router.get('/call-logs', vc.getCallLogs);
+
+// Active phone call state — proxies to ai_service_gemini GET /twilio/active-call
+router.get('/active-call', vc.getActiveCall);
+
+// Confirm phone order from dashboard — proxies to ai_service_gemini POST /twilio/confirm-phone-order/:callSid
+// No auth guard — the Twilio call SID acts as the access token for this internal dashboard action.
+router.post('/confirm-phone-order/:callSid', vc.confirmPhoneOrder);
+
 module.exports = router;

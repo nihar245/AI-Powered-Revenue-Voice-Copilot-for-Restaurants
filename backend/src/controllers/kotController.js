@@ -1,25 +1,34 @@
 const db = require('../config/db');
 
+const LOG = (...args) => console.log('[KOT]', new Date().toISOString(), ...args);
+const ERR = (...args) => console.error('[KOT][ERROR]', new Date().toISOString(), ...args);
+
 // Update KOT status (pending → preparing → ready)
 exports.updateKotStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    LOG('updateKotStatus  kot_id=%s  requested_status=%s', id, status);
     const valid = ['preparing', 'ready'];
     if (!valid.includes(status)) {
+      ERR('Invalid status=%s for kot_id=%s', status, id);
       return res.status(400).json({ error: 'Status must be preparing or ready' });
     }
 
     await db.query('UPDATE kot SET status = $1 WHERE kot_id = $2', [status, id]);
+    LOG('kot updated  kot_id=%s  new_status=%s', id, status);
 
     // Sync parent order status: preparing → preparing, ready → ready
-    await db.query(
-      'UPDATE orders SET status = $1 WHERE order_id = (SELECT order_id FROM kot WHERE kot_id = $2)',
+    const orderSync = await db.query(
+      'UPDATE orders SET status = $1 WHERE order_id = (SELECT order_id FROM kot WHERE kot_id = $2) RETURNING order_id',
       [status, id]
     );
+    LOG('order status synced  order_id=%s  status=%s',
+      orderSync.rows[0]?.order_id, status);
 
     res.json({ kot_id: parseInt(id, 10), status });
   } catch (err) {
+    ERR('updateKotStatus threw:', err.message);
     next(err);
   }
 };
@@ -27,6 +36,7 @@ exports.updateKotStatus = async (req, res, next) => {
 // Pending KOTs for kitchen display
 exports.pending = async (_req, res, next) => {
   try {
+    LOG('pending() called — fetching pending/preparing KOTs');
     const { rows } = await db.query(`
       SELECT
         k.kot_id,
@@ -55,8 +65,10 @@ exports.pending = async (_req, res, next) => {
         CASE k.priority WHEN 'urgent' THEN 0 ELSE 1 END,
         k.created_at ASC
     `);
+    LOG('pending() returned %d KOT(s)', rows.length);
     res.json(rows);
   } catch (err) {
+    ERR('pending() threw:', err.message);
     next(err);
   }
 };

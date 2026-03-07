@@ -18,7 +18,18 @@ class Settings(BaseSettings):
     gemini_text_model: str = "gemini-2.0-flash"
 
     # gemini-2.5-flash-native-audio-preview-* for Gemini Live audio-in / audio-out
-    gemini_audio_model: str = "gemini-2.5-flash-native-audio-preview-12-2025"
+    gemini_audio_model: str = "gemini-2.5-flash-native-audio-latest"
+
+    # ── Twilio phone call integration ─────────────────────────────────────────
+    twilio_account_sid:  str = ""
+    twilio_auth_token:   str = ""
+    twilio_phone_number: str = ""
+    twilio_sip_domain:   str = ""
+    # Public-facing HTTPS URL of THIS server — used to build the Media Stream
+    # WebSocket URL returned in TwiML.  Examples:
+    #   https://abc123.ngrok.io        (local dev via ngrok)
+    #   https://api.yourrestaurant.com (production)
+    twilio_base_url: str = ""
 
 
 settings = Settings()

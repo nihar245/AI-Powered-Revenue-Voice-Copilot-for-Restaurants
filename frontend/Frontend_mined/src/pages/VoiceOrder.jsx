@@ -14,6 +14,8 @@ import {
   Timer,
   UtensilsCrossed,
   Leaf,
+  Phone,
+  Clock,
 } from 'lucide-react'
 import { API_URL } from '../config'
 
@@ -58,6 +60,10 @@ export default function VoiceOrder() {
   const [menuLoading, setMenuLoading]         = useState(true)
   const [lastResponse, setLastResponse]       = useState(null)
   const [showRawJson, setShowRawJson]         = useState(false)
+  const [recentCalls, setRecentCalls]         = useState([])
+  const [activeCall, setActiveCall]           = useState(null)   // live phone call cart
+  const [phoneConfirming, setPhoneConfirming]  = useState(false)
+  const [phoneConfirmed, setPhoneConfirmed]    = useState(false)
 
   // --- refs ---
   const sessionIdRef    = useRef(null)
@@ -85,6 +91,41 @@ export default function VoiceOrder() {
       .then(data => setMenuCategories(data.categories || []))
       .catch(() => setMenuCategories([]))
       .finally(() => setMenuLoading(false))
+  }, [])
+
+  // Fetch recent call logs (phone orders)
+  useEffect(() => {
+    const load = () => {
+      const token = localStorage.getItem('token')
+      fetch(`${API_URL}/voice/call-logs?limit=10`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(data => setRecentCalls(Array.isArray(data) ? data : []))
+        .catch(() => {})
+    }
+    load()
+    const id = setInterval(load, 20_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Poll active phone call state every 3 s
+  useEffect(() => {
+    const poll = () => {
+      const token = localStorage.getItem('token')
+      fetch(`${API_URL}/voice/active-call`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+        .then(data => {
+          setActiveCall(data.active ? data : null)
+          if (!data.active) setPhoneConfirmed(false)
+        })
+        .catch(() => {})
+    }
+    poll()
+    const id = setInterval(poll, 3_000)
+    return () => clearInterval(id)
   }, [])
 
   // --- audio playback helper ---
@@ -183,6 +224,35 @@ export default function VoiceOrder() {
     setLastResponse(displayData)
   }, [playAudioBase64])
 
+  // --- confirm phone order from dashboard ---
+  const handlePhoneConfirm = useCallback(async () => {
+    if (!activeCall?.call_sid) return
+    setPhoneConfirming(true)
+    setError(null)
+    const token = localStorage.getItem('token')
+    try {
+      const res = await fetch(`${API_URL}/voice/confirm-phone-order/${activeCall.call_sid}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      })
+      if (!res.ok) throw new Error(`Confirm failed ${res.status}`)
+      const data = await res.json()
+      if (data.success) {
+        setPhoneConfirmed(true)
+        setActiveCall(null)
+      } else {
+        setError(data.error || 'Failed to confirm order')
+      }
+    } catch (e) {
+      setError(e.message || 'Failed to confirm order')
+    } finally {
+      setPhoneConfirming(false)
+    }
+  }, [activeCall])
+
   // --- upsell chip click ---
   const handleAddItem = useCallback(async (chip) => {
     setError(null)
@@ -267,6 +337,8 @@ export default function VoiceOrder() {
     setTurn(0)
     setLastResponse(null)
     setShowRawJson(false)
+    setPhoneConfirming(false)
+    setPhoneConfirmed(false)
   }, [])
 
   // ---- derived ----
@@ -546,6 +618,108 @@ export default function VoiceOrder() {
             </div>
           </div>
 
+          {/* Active Phone Call — live cart from Twilio */}
+          {(activeCall || phoneConfirmed) && (
+            <div className="card overflow-hidden animate-fade-in border-l-4 border-l-amber-400">
+              <div className="px-5 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <Phone size={13} className="text-amber-600" />
+                  <span className="text-sm font-semibold text-amber-800">Phone Call Active</span>
+                </div>
+                <span className="text-xs text-amber-600 font-mono">
+                  {activeCall?.caller || activeCall?.call_sid?.slice(0, 12)}
+                </span>
+              </div>
+
+              {phoneConfirmed ? (
+                <div className="p-4 text-center">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle2 size={20} className="text-emerald-400" />
+                  </div>
+                  <p className="text-emerald-600 font-semibold text-sm">Order sent to kitchen!</p>
+                </div>
+              ) : activeCall && (
+                <div className="p-4">
+                  {/* Cart items */}
+                  {activeCall.cart.length === 0 ? (
+                    <p className="text-surface-400 text-sm text-center py-3">Waiting for order…</p>
+                  ) : (
+                    <>
+                      <div className="space-y-2 mb-3">
+                        {activeCall.cart.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm">
+                            <div>
+                              <span className="text-surface-800 font-medium">{item.name}</span>
+                              {item.variant_name && (
+                                <span className="text-surface-400 text-xs ml-1">({item.variant_name})</span>
+                              )}
+                              <span className="text-surface-400 text-xs ml-2">×{item.quantity}</span>
+                            </div>
+                            <span className="text-surface-600 text-xs shrink-0 ml-2">
+                              ₹{(item.unit_price * item.quantity).toFixed(0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-dashed border-surface-200 pt-2 flex items-center justify-between mb-3">
+                        <span className="text-surface-500 text-xs">Total (incl. tax)</span>
+                        <span className="font-bold text-surface-900">₹{activeCall.total.toFixed(0)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Live conversation transcript */}
+                  {activeCall.transcript && activeCall.transcript.length > 0 && (
+                    <div className="mb-3 border border-surface-200 rounded-lg p-3 bg-surface-50 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-surface-400 mb-1 flex items-center gap-1">
+                        <MessageSquare size={9} /> Live Conversation
+                      </p>
+                      {activeCall.transcript.slice(-3).map((t, i) => (
+                        <div key={i} className="space-y-1">
+                          {t.customer && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-[9px] font-bold text-primary-500 uppercase w-12 shrink-0 mt-0.5">Customer</span>
+                              <span className="text-xs text-surface-700 flex-1 leading-snug">{t.customer}</span>
+                            </div>
+                          )}
+                          {t.aria && (
+                            <div className="flex items-start gap-1.5">
+                              <span className="text-[9px] font-bold text-violet-500 uppercase w-12 shrink-0 mt-0.5">Aria</span>
+                              <span className="text-xs text-surface-600 flex-1 leading-snug">{t.aria}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Confirm from UI */}
+                  {activeCall.cart.length > 0 && (
+                    <button
+                      onClick={handlePhoneConfirm}
+                      disabled={phoneConfirming}
+                      className="btn-primary w-full py-2 text-xs mb-3 disabled:opacity-50"
+                    >
+                      {phoneConfirming ? 'Confirming…' : '✔ Confirm & Send to Kitchen'}
+                    </button>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-surface-400">
+                    <span>{activeCall.turns || 0} turns</span>
+                    <span className={`px-2 py-0.5 rounded-full border text-[10px] ${
+                      activeCall.state === 'awaiting_kitchen_confirm'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                    }`}>
+                      {activeCall.state === 'awaiting_kitchen_confirm' ? 'Awaiting confirm' : 'Ordering…'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* AI metrics */}
           {transcript && (
             <div className="card p-4 space-y-2 animate-fade-in">
@@ -618,6 +792,56 @@ export default function VoiceOrder() {
           </div>
         </div>
       </div>
+
+      {/* Recent Phone Call History */}
+      {recentCalls.length > 0 && (
+        <div className="mt-6 card overflow-hidden animate-fade-in">
+          <div className="px-5 py-3.5 bg-surface-50 border-b border-surface-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Phone size={14} className="text-surface-500" />
+              <span className="text-sm font-semibold text-surface-700">Recent Phone Orders</span>
+            </div>
+            <a href="/dashboard/call-logs" className="text-xs text-primary-600 hover:underline">View all →</a>
+          </div>
+          <div className="divide-y divide-surface-100">
+            {recentCalls.slice(0, 5).map((call, i) => (
+              <div key={call.call_sid || i} className="flex items-center gap-4 px-5 py-3">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                  call.status === 'order_confirmed' ? 'bg-emerald-100' :
+                  call.status === 'in_progress'    ? 'bg-amber-100'   : 'bg-surface-100'
+                }`}>
+                  <Phone size={12} className={
+                    call.status === 'order_confirmed' ? 'text-emerald-600' :
+                    call.status === 'in_progress'    ? 'text-amber-600'   : 'text-surface-400'
+                  } />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-surface-800 truncate">
+                    {call.caller || call.call_sid?.slice(0, 18) || 'Unknown'}
+                  </p>
+                  <p className="text-xs text-surface-400 flex items-center gap-1">
+                    <Clock size={10} />
+                    {call.start_time ? new Date(call.start_time).toLocaleString('en-IN', { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
+                    {' · '}{call.turns || 0} turns
+                  </p>
+                </div>
+                {call.order_number && (
+                  <span className="text-xs text-emerald-600 font-medium shrink-0">#{call.order_number}</span>
+                )}
+                {call.order_total ? (
+                  <span className="text-sm font-bold text-surface-900 shrink-0">₹{call.order_total.toFixed(0)}</span>
+                ) : (
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full border shrink-0 ${
+                    call.status === 'order_confirmed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                    call.status === 'in_progress'    ? 'bg-amber-100   text-amber-700  border-amber-200'    :
+                                                       'bg-surface-100 text-surface-500 border-surface-200'
+                  }`}>{call.status === 'in_progress' ? 'Active' : call.status || 'Done'}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

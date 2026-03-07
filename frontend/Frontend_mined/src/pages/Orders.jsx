@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw } from 'lucide-react'
+import { X, ChefHat, Mic, MousePointer, Plus, Minus, Search, ShoppingBag, Sparkles, RefreshCw, Flame, Star } from 'lucide-react'
 import { usePOS } from '../context/POSContext'
 import { apiFetch } from '../config'
 import ComboSuggestions from '../components/ComboSuggestions'
@@ -23,9 +23,10 @@ export default function Orders() {
   const [search, setSearch] = useState('')
 
   // Real menu data from API
-  const [menuItems, setMenuItems] = useState([])  // [{item_id, name, variants:[{variant_id, variant_name, selling_price}]}]
+  const [menuItems, setMenuItems] = useState([])  // [{item_id, name, category, is_veg, variants:[{variant_id, variant_name, selling_price}]}]
   const [comboRecs, setComboRecs] = useState([])   // [{itemA, itemB, confidence, lift}]
   const [availability, setAvailability] = useState({}) // { variant_id: { can_make, shortfalls } }
+  const [combosForModal, setCombosForModal] = useState([]) // rich combo objects for the menu modal
 
   // Customer typeahead (declared early — used in useEffect below)
   const [customerSearch, setCustomerSearch] = useState('');
@@ -37,6 +38,7 @@ export default function Orders() {
     apiFetch('/menu/items').then(items => setMenuItems(items)).catch(() => {})
     apiFetch('/revenue/top-combos').then(combos => setComboRecs(combos)).catch(() => {})
     apiFetch('/inventory/availability').then(av => setAvailability(av || {})).catch(() => {})
+    apiFetch('/combos/suggestions?page=1&limit=8').then(data => setCombosForModal(data.combos || [])).catch(() => {})
   }, [])
 
   // Debounced customer typeahead
@@ -122,6 +124,9 @@ export default function Orders() {
   const [orderError, setOrderError] = useState(null); // null | { message, shortfalls }
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash' | 'online'
   const [paymentLoading, setPaymentLoading] = useState(false);
+  // Menu search / category filter inside modal
+  const [menuSearch, setMenuSearch] = useState('');
+  const [menuCategory, setMenuCategory] = useState('All');
 
   const handleAddToCart = (opt = menuOptions[selectedMenuIdx], qty = selectedQuantity, isUpsell = false, triggerName = null) => {
     if (qty < 1 || !opt) return;
@@ -170,6 +175,23 @@ export default function Orders() {
 
   const currentOrderTotal = cartItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
+  // All unique categories from menu for the category pill filter
+  const menuCategories = useMemo(() => {
+    const cats = [...new Set(menuItems.map(i => i.category).filter(Boolean))];
+    return ['All', ...cats];
+  }, [menuItems]);
+
+  // Menu items filtered by category + search for the modal grid
+  const filteredMenuForModal = useMemo(() => {
+    let items = menuItems;
+    if (menuCategory !== 'All') items = items.filter(i => i.category === menuCategory);
+    if (menuSearch.trim()) {
+      const q = menuSearch.toLowerCase();
+      items = items.filter(i => i.name.toLowerCase().includes(q));
+    }
+    return items;
+  }, [menuItems, menuCategory, menuSearch]);
+
   const resetModal = () => {
     setIsModalOpen(false);
     setCartItems([]);
@@ -180,6 +202,8 @@ export default function Orders() {
     setSelectedQuantity(1);
     setPaymentMethod('cash');
     setPaymentLoading(false);
+    setMenuSearch('');
+    setMenuCategory('All');
   };
 
   const handleCreateOrder = async () => {
@@ -549,7 +573,7 @@ export default function Orders() {
       {/* ── NEW ORDER MODAL ── */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white max-w-2xl w-full rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white max-w-4xl w-full rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
             <div className="px-6 py-4 border-b border-surface-200 flex items-center justify-between bg-zinc-50">
               <h2 className="text-lg font-bold text-zinc-900">Create New Order</h2>
               <button onClick={() => { resetModal(); }} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
@@ -611,85 +635,197 @@ export default function Orders() {
                   )}
                 </div>
 
-                {/* Favourite item quick-add */}
+                {/* Customer Favourite Items — shown when a customer is selected */}
                 {selectedCustomer?.favourite_item && (() => {
+                  const favItem = selectedCustomer.favourite_item;
+                  // Find all variant options that match the favourite item name
                   const favOpts = menuOptions.filter(o =>
-                    o.label.toLowerCase().startsWith(selectedCustomer.favourite_item.toLowerCase())
-                  )
-                  if (!favOpts.length) return null
+                    o.label.toLowerCase().includes(favItem.toLowerCase())
+                  );
+                  if (!favOpts.length) return null;
                   return (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-widest mb-2">
-                        Favourite — {selectedCustomer.favourite_item}
-                      </p>
+                    <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-3 shadow-sm">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Star size={12} className="text-amber-500 fill-amber-400" />
+                        <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
+                          {selectedCustomer.name ? `${selectedCustomer.name.split(' ')[0]}'s Favourite` : 'Customer Favourite'}
+                        </p>
+                        <span className="ml-auto text-[9px] text-amber-500 font-medium bg-amber-100 px-1.5 py-0.5 rounded-full">
+                          {selectedCustomer.total_visits} visits
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-amber-600 mb-2">Usually orders: <span className="font-semibold">{favItem}</span></p>
                       <div className="flex flex-wrap gap-2">
                         {favOpts.map(opt => {
-                          const inCart = cartItems.some(ci => ci.variant_id === opt.variant_id)
+                          const inCart = cartItems.some(ci => ci.variant_id === opt.variant_id);
+                          const qty = cartItems.find(ci => ci.variant_id === opt.variant_id)?.qty;
                           return (
                             <button
                               key={opt.variant_id}
                               onClick={() => !inCart && handleAddToCart(opt, 1, false, null)}
-                              disabled={inCart}
-                              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                              disabled={inCart || !opt.can_make}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all active:scale-95 ${
                                 inCart
                                   ? 'bg-emerald-50 border-emerald-200 text-emerald-600 cursor-default'
-                                  : 'bg-white border-amber-200 text-amber-800 hover:bg-amber-100'
+                                  : !opt.can_make
+                                    ? 'bg-surface-50 border-surface-200 text-surface-400 cursor-not-allowed opacity-60'
+                                    : 'bg-white border-amber-300 text-amber-800 hover:bg-amber-100 shadow-sm'
                               }`}
                             >
-                              {inCart ? '✓' : <Plus size={11} />}
-                              {opt.label} — ₹{opt.price}
+                              {inCart ? <><span className="text-emerald-500">✓</span> Added (×{qty})</> : !opt.can_make ? 'Out of Stock' : <><Plus size={10} /> {opt.label} — ₹{opt.price}</>}
                             </button>
-                          )
+                          );
                         })}
                       </div>
                     </div>
-                  )
+                  );
                 })()}
 
                 <div className="pt-2 border-t border-dashed border-surface-200">
-                  <label className="block text-xs font-semibold text-surface-500 uppercase tracking-widest mb-1.5">Item Selector</label>
-                  <div className="flex flex-col gap-3">
-                    <select
-                      value={selectedMenuIdx}
-                      onChange={(e) => setSelectedMenuIdx(Number(e.target.value))}
-                      className="w-full bg-surface-50 border border-surface-200 px-3 py-2 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 outline-none"
-                    >
-                      {menuOptions.map((opt, idx) => (
-                        <option key={opt.variant_id} value={idx} disabled={!opt.can_make}>
-                          {opt.label} — ₹{opt.price}{!opt.can_make ? ' [OUT OF STOCK]' : ''}
-                        </option>
-                      ))}
-                    </select>
+                  <label className="block text-xs font-semibold text-surface-500 uppercase tracking-widest mb-2">Order Menu</label>
 
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center border border-surface-200 rounded-lg overflow-hidden h-9">
-                        <button onClick={() => setSelectedQuantity(Math.max(1, selectedQuantity - 1))} className="w-8 h-full bg-surface-50 hover:bg-surface-100 flex items-center justify-center text-surface-500">
-                          <Minus size={14} />
-                        </button>
-                        <div className="w-10 h-full flex items-center justify-center border-x border-surface-200 text-sm font-semibold">
-                          {selectedQuantity}
-                        </div>
-                        <button onClick={() => setSelectedQuantity(selectedQuantity + 1)} className="w-8 h-full bg-surface-50 hover:bg-surface-100 flex items-center justify-center text-surface-500">
-                          <Plus size={14} />
-                        </button>
-                      </div>
+                  {/* Search bar */}
+                  <div className="relative mb-2">
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400" />
+                    <input
+                      type="text"
+                      placeholder="Search items…"
+                      value={menuSearch}
+                      onChange={e => setMenuSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-surface-50 border border-surface-200 rounded-lg text-xs focus:ring-1 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
 
+                  {/* Category filter pills */}
+                  <div className="flex gap-1.5 flex-wrap mb-3">
+                    {menuCategories.map(cat => (
                       <button
-                        onClick={() => handleAddToCart(menuOptions[selectedMenuIdx], selectedQuantity, false, null)}
-                        disabled={!menuOptions[selectedMenuIdx]?.can_make}
-                        title={!menuOptions[selectedMenuIdx]?.can_make ? `Out of stock: ${menuOptions[selectedMenuIdx]?.shortfalls?.join(', ')}` : undefined}
-                        className="flex-1 bg-zinc-900 hover:bg-black text-white font-medium text-sm h-9 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        key={cat}
+                        onClick={() => setMenuCategory(cat)}
+                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                          menuCategory === cat
+                            ? 'bg-red-500 text-white border-red-500 shadow-sm'
+                            : 'bg-white text-surface-500 border-surface-200 hover:bg-surface-100 hover:text-surface-800'
+                        }`}
                       >
-                        {menuOptions[selectedMenuIdx]?.can_make === false ? 'Out of Stock' : 'Add Item'}
+                        {cat}
                       </button>
+                    ))}
+                  </div>
+
+                  {/* Recommended Combos strip */}
+                  {combosForModal.length > 0 && (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <Flame size={11} className="text-orange-500" />
+                        <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">Recommended Combos</span>
+                        <span className="text-[9px] text-orange-400">· frequently ordered together</span>
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                        {combosForModal.map(combo => (
+                          <div key={combo.combo_id} className="shrink-0 w-40 rounded-xl border border-orange-200 bg-gradient-to-b from-orange-50 to-white p-2.5 flex flex-col gap-1.5">
+                            <div className="flex items-start justify-between gap-1">
+                              <p className="text-[10px] font-semibold text-surface-800 line-clamp-2 flex-1">{combo.combo_label || combo.combo_name}</p>
+                              <span className="text-[8px] font-bold bg-orange-100 text-orange-700 px-1 py-0.5 rounded shrink-0">
+                                {combo.combo_size === 2 ? 'Pair' : `${combo.combo_size}×`}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-0.5">
+                              {(combo.items || []).map(item => (
+                                <span key={item.item_id} className="text-[8px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                                  {item.qty > 1 ? `${item.qty}× ` : ''}{item.name}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between mt-auto">
+                              <span className="text-xs font-bold text-orange-600">₹{combo.combo_price}</span>
+                              {combo.saving > 0 && <span className="text-[8px] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded">-{combo.saving_pct}%</span>}
+                            </div>
+                            <button
+                              onClick={() => handleAddCombo(combo)}
+                              className="w-full flex items-center justify-center gap-1 text-[9px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-lg py-1.5 transition-all"
+                            >
+                              <ShoppingBag size={9} /> Add Combo
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  )}
+
+                  {/* Menu Items Grid */}
+                  <div className="h-56 overflow-y-auto custom-scrollbar rounded-lg">
+                    {filteredMenuForModal.length === 0 ? (
+                      <div className="flex items-center justify-center h-full text-surface-400 text-xs">No items match your search.</div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2 pr-1">
+                        {filteredMenuForModal.flatMap(item =>
+                          (item.variants || []).filter(v => v.is_available).map(v => {
+                            const avail = availability[v.variant_id];
+                            const can_make = avail === undefined ? true : avail.can_make;
+                            const shortfalls = avail?.shortfalls || [];
+                            const inCart = cartItems.some(ci => ci.variant_id === v.variant_id);
+                            const label = v.variant_name !== 'Regular' ? `${item.name} (${v.variant_name})` : item.name;
+                            const price = parseFloat(v.selling_price);
+                            const opt = { label, item_id: item.item_id, variant_id: v.variant_id, price, can_make, shortfalls };
+                            return (
+                              <div
+                                key={v.variant_id}
+                                className={`rounded-xl border p-2.5 flex flex-col gap-1.5 transition-colors ${
+                                  !can_make
+                                    ? 'bg-surface-50 border-surface-100 opacity-60'
+                                    : inCart
+                                      ? 'border-emerald-200 bg-emerald-50/40'
+                                      : 'border-surface-200 bg-white hover:border-red-200 hover:bg-red-50/20'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-1">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-semibold text-surface-900 line-clamp-1">{label}</p>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                      <span className={`text-[8px] font-bold ${
+                                        item.is_veg ? 'text-emerald-600' : 'text-red-500'
+                                      }`}>
+                                        {item.is_veg ? '● Veg' : '● Non-veg'}
+                                      </span>
+                                      {item.category && (
+                                        <span className="text-[8px] text-surface-400">{item.category}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-bold text-primary-700 shrink-0">₹{price}</span>
+                                </div>
+                                <button
+                                  onClick={() => can_make && handleAddToCart(opt, 1)}
+                                  disabled={!can_make}
+                                  title={!can_make ? `Out of stock: ${shortfalls.map(s=>s.ingredient).join(', ')}` : undefined}
+                                  className={`w-full flex items-center justify-center gap-1 text-[10px] font-semibold rounded-lg py-1.5 transition-all active:scale-95 ${
+                                    inCart
+                                      ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                      : !can_make
+                                        ? 'bg-surface-100 text-surface-400 cursor-not-allowed'
+                                        : 'bg-zinc-900 hover:bg-black text-white'
+                                  }`}
+                                >
+                                  {inCart ? (
+                                    <><span className="text-emerald-500">✓</span> In Cart ({cartItems.find(ci=>ci.variant_id===v.variant_id)?.qty})</>
+                                  ) : !can_make ? 'Out of Stock' : (
+                                    <><Plus size={10} /> Add</>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
               </div>
 
               {/* Cart Section */}
-              <div className="w-full md:w-64 bg-surface-50 rounded-xl p-4 border border-surface-200 flex flex-col h-[300px]">
+              <div className="w-full md:w-72 bg-surface-50 rounded-xl p-4 border border-surface-200 flex flex-col h-[420px] shrink-0">
                 <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest border-b border-surface-200 pb-2 mb-3">Cart ({cartItems.length})</h3>
 
                 <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
@@ -703,10 +839,20 @@ export default function Orders() {
                         </button>
                         <div className="flex items-center gap-1 pr-4">
                           {item.is_upsell && <Sparkles size={10} className="text-violet-500 shrink-0" />}
-                          <span className="text-xs font-semibold">{item.label}</span>
+                          <span className="text-xs font-semibold line-clamp-1">{item.label}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-zinc-500">₹{item.price} x{item.qty}</span>
+                          <div className="flex items-center border border-surface-200 rounded-md overflow-hidden h-6">
+                            <button
+                              onClick={() => setCartItems(prev => prev.map((ci, i) => i === idx ? { ...ci, qty: Math.max(1, ci.qty - 1) } : ci))}
+                              className="w-5 h-full bg-surface-50 hover:bg-surface-100 flex items-center justify-center text-surface-500"
+                            ><Minus size={10} /></button>
+                            <span className="w-6 text-center text-[11px] font-bold border-x border-surface-200">{item.qty}</span>
+                            <button
+                              onClick={() => setCartItems(prev => prev.map((ci, i) => i === idx ? { ...ci, qty: ci.qty + 1 } : ci))}
+                              className="w-5 h-full bg-surface-50 hover:bg-surface-100 flex items-center justify-center text-surface-500"
+                            ><Plus size={10} /></button>
+                          </div>
                           <span className="text-xs font-bold text-zinc-900">₹{item.price * item.qty}</span>
                         </div>
                       </div>

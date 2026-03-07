@@ -1,5 +1,8 @@
 const db = require('../config/db');
 
+const LOG = (...args) => console.log('[ORDER]', new Date().toISOString(), ...args);
+const ERR = (...args) => console.error('[ORDER][ERROR]', new Date().toISOString(), ...args);
+
 exports.list = async (req, res, next) => {
   try {
     const { status, limit } = req.query;
@@ -76,11 +79,16 @@ exports.create = async (req, res, next) => {
       customer_id, channel, placed_by, items, addons, payment_method,
     } = req.body;
 
+    LOG('create() called  channel=%s  placed_by=%s  customer_id=%s  items=%d',
+      channel, placed_by, customer_id, (items || []).length);
+
     if (!items || items.length === 0) {
+      ERR('create() rejected — no items in body');
       return res.status(400).json({ error: 'Order must contain at least one item' });
     }
 
     await client.query('BEGIN');
+    LOG('DB transaction BEGIN');
 
     // Fetch variant details for each item
     let subtotal = 0;
@@ -96,7 +104,12 @@ exports.create = async (req, res, next) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: `Variant ${item.variant_id} not found` });
       }
+      if (vRes.rows.length === 0) {
+        ERR('Variant not found — item_id=%s variant_id=%s', item.item_id, item.variant_id);
+      }
       const v = vRes.rows[0];
+      LOG('Variant fetched  variant_id=%s  selling_price=%s  gst_pct=%s',
+        item.variant_id, v.selling_price, v.gst_pct);
       const qty = item.qty || 1;
       const discPct = item.discount_pct || 0;
       const lineRevenue = parseFloat(v.selling_price) * qty * (1 - discPct / 100);
@@ -146,7 +159,10 @@ exports.create = async (req, res, next) => {
       }
     }
     const shortfalls = Object.values(requiredStock).filter(r => r.needed > r.available);
+    LOG('Stock pre-check  ingredients_checked=%d  shortfalls=%d',
+      Object.keys(requiredStock).length, shortfalls.length);
     if (shortfalls.length > 0) {
+      ERR('Stock shortfall — rolling back:', shortfalls.map(s => s.name));
       await client.query('ROLLBACK');
       return res.status(409).json({
         error: 'Insufficient stock to complete this order',
@@ -177,6 +193,8 @@ exports.create = async (req, res, next) => {
        subtotal, discountAmt, totalTax, total, orderDate, initialPaymentStatus]
     );
     const orderId = orderRes.rows[0].order_id;
+    LOG('ORDER inserted  order_id=%d  subtotal=%s  tax=%s  total=%s  payment_status=%s',
+      orderId, subtotal, totalTax, total, initialPaymentStatus);
 
     // 2. Insert order items
     const lineIds = [];
@@ -190,6 +208,8 @@ exports.create = async (req, res, next) => {
          ri.special_instructions, ri.is_upsell]
       );
       lineIds.push(liRes.rows[0].line_id);
+      LOG('order_item inserted  line_id=%d  item_id=%s  variant_id=%s  qty=%d',
+        liRes.rows[0].line_id, ri.item_id, ri.variant_id, ri.qty);
       // Log upsell event for profit tracking
       if (ri.is_upsell) {
         await client.query(
@@ -226,13 +246,17 @@ exports.create = async (req, res, next) => {
        VALUES ($1, $2, $3, NOW())`,
       [orderId, payment_method || 'cash', total]
     );
+    LOG('order_payments inserted  order_id=%d  method=%s  amount=%s',
+      orderId, payment_method || 'cash', total);
 
     // 5. Create KOT
+    LOG('Inserting KOT for order_id=%d', orderId);
     const kotRes = await client.query(
       `INSERT INTO kot (order_id, status, priority, created_at) VALUES ($1, 'pending', 'normal', NOW()) RETURNING kot_id`,
       [orderId]
     );
     const kotId = kotRes.rows[0].kot_id;
+    LOG('KOT inserted  kot_id=%d  order_id=%d  status=pending', kotId, orderId);
 
     // 6. Create KOT items
     for (let i = 0; i < resolvedItems.length; i++) {
@@ -242,9 +266,12 @@ exports.create = async (req, res, next) => {
          VALUES ($1,$2,$3,$4,$5,'pending')`,
         [kotId, ri.item_id, ri.variant_id, ri.qty, ri.special_instructions]
       );
+      LOG('kot_item inserted  kot_id=%d  item_id=%s  variant_id=%s  qty=%d',
+        kotId, ri.item_id, ri.variant_id, ri.qty);
     }
 
     // 7. Deduct inventory via recipes
+    LOG('Deducting inventory for %d item(s)', resolvedItems.length);
     for (const ri of resolvedItems) {
       const recipes = await client.query(
         'SELECT ing_id, qty_required FROM recipes WHERE item_id = $1 AND variant_id = $2',
@@ -265,6 +292,7 @@ exports.create = async (req, res, next) => {
     }
 
     await client.query('COMMIT');
+    LOG('DB transaction COMMIT — order_id=%d  kot_id=%d', orderId, kotId);
 
     // Update customer aggregates + re-derive segment (outside transaction — best-effort)
     if (customer_id) {
@@ -295,6 +323,7 @@ exports.create = async (req, res, next) => {
       `, [total, customer_id]);
     }
 
+    LOG('Response sent  order_id=%d  kot_id=%d  total=%s  status=placed', orderId, kotId, total);
     res.status(201).json({
       order_id: orderId,
       kot_id: kotId,
@@ -302,6 +331,7 @@ exports.create = async (req, res, next) => {
       status: 'placed',
     });
   } catch (err) {
+    ERR('create() threw — rolling back:', err.message);
     await client.query('ROLLBACK');
     next(err);
   } finally {

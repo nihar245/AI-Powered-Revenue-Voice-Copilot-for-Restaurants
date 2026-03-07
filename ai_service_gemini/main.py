@@ -1,12 +1,14 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from routers import voice, health, test_pipeline
+from routers import voice, health, test_pipeline, twilio_call
 from services.database.connection import connect_db, disconnect_db
 from services.database.queries import fetch_active_menu, fetch_tables
+from services.audio.twilio_bridge import get_greeting_mulaw, get_wait_mulaw
 
 
 @asynccontextmanager
@@ -25,6 +27,16 @@ async def lifespan(app: FastAPI):
         print(f"[startup] WARNING — could not prefetch menu/tables: {exc}")
         app.state.menu   = []
         app.state.tables = []
+
+    # Pre-build gTTS greeting + wait audio in background threads so the first
+    # inbound call never blocks the asyncio event loop waiting for gTTS/ffmpeg.
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, get_greeting_mulaw)
+        await loop.run_in_executor(None, get_wait_mulaw)
+        print("[startup] Pre-built greeting and 'please wait' audio.")
+    except Exception as exc:
+        print(f"[startup] WARNING — audio pre-build failed (silence fallback will be used): {exc}")
 
     print("[startup] ai_service_gemini ready  "
           "(Gemini Live API — audio-in/audio-out, no local ML models)")
@@ -66,3 +78,4 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(health.router,         tags=["health"])
 app.include_router(voice.router,          prefix="/voice",  tags=["voice"])
 app.include_router(test_pipeline.router,  tags=["diagnostics"])
+app.include_router(twilio_call.router,    tags=["twilio"])

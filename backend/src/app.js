@@ -23,6 +23,13 @@ const ingredientsRoutes  = require('./routes/ingredients');
 
 const app = express();
 
+// --------------- Request logger ---------------
+app.use((req, _res, next) => {
+  console.log('[HTTP]', new Date().toISOString(), req.method, req.originalUrl,
+    req.body && Object.keys(req.body).length ? JSON.stringify(req.body).slice(0, 200) : '');
+  next();
+});
+
 // --------------- Middleware ---------------
 app.use(helmet());
 // Allow local frontend dev servers on any localhost port (5173, 5174, etc.)

@@ -160,8 +160,10 @@ async def voice_turn(
     if not settings.gemini_api_key:
         raise RuntimeError("GEMINI_API_KEY is not set in .env")
 
-    # Convert browser audio → PCM 16 kHz (required by Gemini Live)
-    pcm_input = to_pcm16k(audio_bytes)
+    # Convert browser audio → PCM 16 kHz (required by Gemini Live).
+    # Run in a thread so the blocking ffmpeg subprocess does not stall the event loop.
+    loop = asyncio.get_event_loop()
+    pcm_input = await loop.run_in_executor(None, to_pcm16k, audio_bytes)
 
     client = genai.Client(api_key=settings.gemini_api_key)
 
@@ -298,3 +300,165 @@ async def voice_turn(
         "cmd_hint":            cmd_hints[0] if cmd_hints else "",  # backward compat
         "language":            _detect_language(input_transcript),
     }
+
+
+# ─── Persistent per-call session ─────────────────────────────────────────────
+
+class GeminiCallSession:
+    """
+    Persistent Gemini Live WebSocket session for the full duration of one phone call.
+
+    Why this exists
+    ───────────────
+    Opening a new Gemini Live WebSocket on every utterance triggered TLS + WebSocket
+    handshake overhead (~2–3 s) that exceeded Twilio's audio delivery rate, causing
+    "timed out during opening handshake" errors on the very first turn.
+
+    With this class the connection is established ONCE when the call begins and reused
+    for every subsequent turn.  Gemini natively maintains the full conversation context
+    inside the session's context window — no external history injection is needed.
+
+    Per-turn dynamic state (current cart, turn number, awaiting-confirmation flag) is
+    delivered via a short text snippet injected with send_realtime_input(text=…) BEFORE
+    the audio.  With PTT mode (automatic_activity_detection=disabled) the text is
+    batched as context and does NOT trigger a premature response — the model replies
+    only after ActivityEnd.
+
+    Usage
+    ─────
+        session = GeminiCallSession()
+        await session.open(system_instruction)      # once
+        result  = await session.send_turn(audio)    # once per utterance
+        await session.close()                       # once at call end
+    """
+
+    def __init__(self) -> None:
+        self._client: genai.Client | None = None
+        self._session = None   # live session object returned by context-manager __aenter__
+        self._cm      = None   # the async context manager itself
+        self.connected: bool = False
+
+    async def open(self, system_instruction: str, voice_name: str = "Aoede") -> None:
+        """Open the Gemini Live connection.  Must be called exactly once per call."""
+        if not settings.gemini_api_key:
+            raise RuntimeError("GEMINI_API_KEY is not set in .env")
+
+        self._client = genai.Client(api_key=settings.gemini_api_key)
+
+        live_config = types.LiveConnectConfig(
+            response_modalities=["AUDIO"],
+            input_audio_transcription={},
+            output_audio_transcription={},
+            realtime_input_config=types.RealtimeInputConfig(
+                automatic_activity_detection=types.AutomaticActivityDetection(disabled=True)
+            ),
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice_name)
+                )
+            ),
+            system_instruction=system_instruction,
+        )
+
+        self._cm      = self._client.aio.live.connect(
+            model=settings.gemini_audio_model,
+            config=live_config,
+        )
+        self._session = await self._cm.__aenter__()
+        self.connected = True
+        logger.info("[GeminiCallSession] opened  model=%s", settings.gemini_audio_model)
+
+    async def close(self) -> None:
+        """Close the Gemini Live session cleanly."""
+        if self._cm and self.connected:
+            try:
+                await self._cm.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.debug("[GeminiCallSession] close error (ignored): %s", exc)
+        self.connected = False
+        self._session  = None
+        logger.info("[GeminiCallSession] closed")
+
+    async def send_turn(
+        self,
+        audio_bytes:    bytes,
+        context_update: str | None = None,
+    ) -> dict:
+        """
+        Process one customer utterance and return Gemini's audio + text response.
+
+        Parameters
+        ----------
+        audio_bytes    : Raw audio (WAV or μ-law). Converted to PCM 16 kHz internally.
+        context_update : Short text injected BEFORE the audio conveying current cart
+                         state, turn number, and any special state (greeting, awaiting
+                         kitchen confirmation, etc.).
+
+        Returns
+        -------
+        Same dict shape as voice_turn():
+            audio_b64, audio_mime, transcript, transcript_display,
+            response_text, response_display, cmd_hints, cmd_hint, language
+        """
+        if not self._session or not self.connected:
+            raise RuntimeError("Gemini session is not open — call open() first.")
+
+        # Run ffmpeg conversion in a thread to avoid blocking the event loop.
+        loop = asyncio.get_event_loop()
+        pcm_input = await loop.run_in_executor(None, to_pcm16k, audio_bytes)
+
+        # Inject per-turn context before the audio.  With PTT mode the model will
+        # not respond to the text alone — it waits until ActivityEnd.
+        if context_update:
+            await self._session.send_realtime_input(text=context_update)
+
+        await self._session.send_realtime_input(activity_start=types.ActivityStart())
+        await self._session.send_realtime_input(
+            audio=types.Blob(data=pcm_input, mime_type="audio/pcm;rate=16000")
+        )
+        await self._session.send_realtime_input(activity_end=types.ActivityEnd())
+
+        audio_chunks:     list[bytes] = []
+        input_transcript  = ""
+        output_transcript = ""
+
+        async for response in self._session.receive():
+            sc = getattr(response, "server_content", None)
+            if not sc:
+                continue
+
+            model_turn = getattr(sc, "model_turn", None)
+            if model_turn:
+                for part in getattr(model_turn, "parts", []):
+                    idata = getattr(part, "inline_data", None)
+                    if idata and getattr(idata, "data", None):
+                        audio_chunks.append(idata.data)
+
+            in_tr = getattr(sc, "input_transcription", None)
+            if in_tr:
+                input_transcript += getattr(in_tr, "text", "") or ""
+
+            out_tr = getattr(sc, "output_transcription", None)
+            if out_tr:
+                output_transcript += getattr(out_tr, "text", "") or ""
+
+            if getattr(sc, "turn_complete", False):
+                break
+
+        raw_pcm   = b"".join(audio_chunks)
+        audio_b64 = base64.b64encode(_pcm_to_wav(raw_pcm)).decode() if raw_pcm else ""
+
+        clean_response, cmd_hints, roman_display, transcript_roman = _parse_response_tags(output_transcript)
+        transcript_display = transcript_roman or input_transcript.strip()
+
+        return {
+            "audio_b64":           audio_b64,
+            "audio_mime":          "audio/wav",
+            "transcript":          input_transcript.strip(),
+            "transcript_display":  transcript_display,
+            "response_text":       clean_response,
+            "response_display":    roman_display or clean_response,
+            "cmd_hints":           cmd_hints,
+            "cmd_hint":            cmd_hints[0] if cmd_hints else "",
+            "language":            _detect_language(input_transcript),
+        }

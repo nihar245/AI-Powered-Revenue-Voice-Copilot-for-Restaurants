@@ -19,7 +19,8 @@ class Intent(str, Enum):
     MODIFY_ITEM          = "modify_item"
     VIEW_MENU            = "view_menu"
     VIEW_CART            = "view_cart"
-    CONFIRM_ORDER        = "confirm_order"
+    DONE_ORDERING        = "done_ordering"   # customer says "that's all / no more"
+    CONFIRM_ORDER        = "confirm_order"   # customer confirms send-to-kitchen
     CANCEL_ORDER         = "cancel_order"
     ENQUIRE_PRICE        = "enquire_price"
     UPSELL_RESPONSE      = "upsell_response"
@@ -28,11 +29,12 @@ class Intent(str, Enum):
 
 
 class DialogueState(str, Enum):
-    GREETING      = "greeting"
-    TAKING_ORDER  = "taking_order"
-    CONFIRMING    = "confirming"
-    PLACING_ORDER = "placing_order"
-    DONE          = "done"
+    GREETING                 = "greeting"
+    TAKING_ORDER             = "taking_order"
+    AWAITING_KITCHEN_CONFIRM = "awaiting_kitchen_confirm"  # cart read back, waiting yes/no
+    CONFIRMING               = "confirming"
+    PLACING_ORDER            = "placing_order"
+    DONE                     = "done"
 
 
 # ─── Cart item ────────────────────────────────────────────────────────────────

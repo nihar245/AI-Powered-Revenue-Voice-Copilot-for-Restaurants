@@ -711,9 +711,9 @@ def train_menu():
     n_decrease = sum(1 for r in price_recs if r["direction"] == "decrease")
     n_maintain = sum(1 for r in price_recs if r["direction"] == "maintain")
     print(
-        f"  \u2192 {len(price_recs)} price recs "
-        f"(\u2191{n_increase} increase, \u2193{n_decrease} decrease, "
-        f"={n_maintain} maintain, \ud83c\udd95{new_item_count} new-item), "
+        f"  -> {len(price_recs)} price recs "
+        f"(+{n_increase} increase, -{n_decrease} decrease, "
+        f"={n_maintain} maintain, {new_item_count} new-item), "
         f"{len(upsell_pairs)} upsell pairs, "
         f"{auto_pairs} auto-pairs + {auto_triplets} auto-triplets written to DB"
     )

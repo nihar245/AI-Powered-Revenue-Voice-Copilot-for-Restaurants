@@ -11,3 +11,9 @@ google-genai>=1.0.0
 
 # Audio conversion: browser WebM/Opus → raw PCM 16 kHz mono (bundles a static ffmpeg binary)
 imageio-ffmpeg>=0.4.0
+
+# Twilio phone call integration (signature validation + REST API)
+twilio>=9.0.0
+
+# TTS for "please wait" interim audio during slow Gemini turns
+gTTS>=2.5.0

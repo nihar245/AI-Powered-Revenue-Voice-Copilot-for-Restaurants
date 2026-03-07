@@ -38,7 +38,7 @@ Available menu items (ONLY use names from this list):
 
 Return ONLY a single valid JSON object — no markdown, no explanation:
 {{
-  "intent": "<one of: add_item | remove_item | modify_item | confirm_order | cancel_order | view_cart | view_menu | enquire_price | upsell_response | greeting | clarify | unknown>",
+  "intent": "<one of: add_item | remove_item | modify_item | done_ordering | confirm_order | cancel_order | view_cart | view_menu | enquire_price | upsell_response | greeting | clarify | unknown>",
   "items": [
     {{
       "name": "<exact menu name>",
@@ -60,14 +60,19 @@ Rules:
 1. Match names EXACTLY from menu list; correct minor mishearings ("masla chai" → "Masala Chai").
 2. If customer mentions an item not on the menu, set ambiguous=true and clarification_needed=true.
 3. clarification_question: if ambiguous or unclear, write the question Aria should ask.
-4. CONFIRM_ORDER: "yes", "confirm", "place it", "order karo", "theek hai", "done", "that's all".
-5. CANCEL_ORDER: "cancel", "forget it", "nahi chahiye", "band karo".
-6. VIEW_CART: "what did I order", "mera order", "show cart", "total", "kitna hua".
-7. modify_item: "make it spicy", "2 kar do", "change quantity", "without onion".
-8. upsell_response: customer responds to a recommendation ("yes add it", "no thanks").
-9. Extract qty from spoken numbers (default 1).
-10. Only set add_ons if explicitly requested (e.g., "extra cheese", "with raita").
-11. Set modifiers fields to null if not mentioned — never guess.
+4. DONE_ORDERING: "that's all", "no more", "nothing else", "I'm done", "bas itna hi", "bas ho gaya",
+   "koi aur nahi", "that's everything", "done ordering", "finished", "no more items".
+   Use done_ordering — NOT confirm_order — when customer signals they have finished adding items.
+5. CONFIRM_ORDER: ONLY when customer explicitly confirms sending to kitchen AFTER being asked
+   "Shall I send this to the kitchen?" — e.g. "yes", "yes please", "send it", "confirm", "go ahead",
+   "haan", "theek hai", "order karo". Do NOT use confirm_order for "that's all" / "done".
+6. CANCEL_ORDER: "cancel", "forget it", "nahi chahiye", "band karo".
+7. VIEW_CART: "what did I order", "mera order", "show cart", "total", "kitna hua".
+8. modify_item: "make it spicy", "2 kar do", "change quantity", "without onion".
+9. upsell_response: customer responds to a recommendation ("yes add it", "no thanks").
+10. Extract qty from spoken numbers (default 1).
+11. Only set add_ons if explicitly requested (e.g., "extra cheese", "with raita").
+12. Set modifiers fields to null if not mentioned — never guess.
 """
 
 

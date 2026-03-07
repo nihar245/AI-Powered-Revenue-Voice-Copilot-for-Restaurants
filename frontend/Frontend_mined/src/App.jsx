@@ -13,6 +13,7 @@ import Customers from './pages/Customers'
 import KitchenDisplay from './pages/KitchenDisplay'
 import Products from './pages/Products'
 import Reports from './pages/Reports'
+import CallLogs from './pages/CallLogs'
 
 import { POSProvider } from './context/POSContext'
 
@@ -38,6 +39,7 @@ function App() {
             <Route path="customers" element={<Customers />} />
             <Route path="kitchen" element={<KitchenDisplay />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="call-logs" element={<CallLogs />} />
           </Route>
 
           {/* Fallback */}
