@@ -1,332 +1,616 @@
-# AI-Powered Revenue & Voice Copilot for Restaurants
+# 🍽️ AI-Powered Revenue & Voice Copilot for Restaurants
 
-AI-powered revenue intelligence engine and voice ordering copilot for restaurants, built on the PetPooja POS ecosystem.
+> An intelligent restaurant management platform combining AI-driven revenue optimization with multilingual voice ordering capabilities
 
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Browser  (React + Vite)   localhost:5173               │
-│  frontend/Frontend_mined/                               │
-└─────────────────┬───────────────────────────────────────┘
-                  │  HTTP  /api/*
-┌─────────────────▼───────────────────────────────────────┐
-│  Node.js / Express API     localhost:3000               │
-│  backend/src/app.js                                     │
-│  • Revenue Intelligence routes  (/api/revenue/*)        │
-│  • Voice Copilot routes         (/api/voice/*)          │
-│  • Menu / Orders / KOT / Auth   (/api/*)                │
-└──────────┬──────────────────────────────────────────────┘
-           │  HTTP  /test/*  (multipart audio)
-┌──────────▼──────────────────────────────────────────────┐
-│  Python FastAPI — Gemini Live Voice Service  :8002      │
-│  ai_service_gemini/                                     │
-│  • POST /test/voice-chat  — audio → cart + TTS          │
-│  • POST /test/add-item    — upsell chip quick-add       │
-│  • POST /test/confirm-order — write KOT to DB           │
-│  • GET  /test/session/:id — session state               │
-└──────────────────────┬──────────────────────────────────┘
-                       │  asyncpg
-┌──────────────────────▼──────────────────────────────────┐
-│  PostgreSQL  cafe_odoo   localhost:5432                 │
-│  18 tables: orders, menu_items, kot, customers, …       │
-└─────────────────────────────────────────────────────────┘
-```
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18.2-61DAFB?style=flat&logo=react)](https://reactjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=flat&logo=node.js)](https://nodejs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
 
 ---
 
-## Prerequisites
+## 📋 Table of Contents
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | ≥ 18 | [nodejs.org](https://nodejs.org) |
-| Python | 3.10 – 3.12 | Conda or venv |
-| PostgreSQL | 14 + | Installed locally |
-| pgAdmin 4 | any | GUI for PostgreSQL |
-| Git | any | |
+- [Overview](#-overview)
+- [Key Features](#-key-features)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Database Schema](#-database-schema)
+- [Installation](#-installation)
+- [Running the Application](#-running-the-application)
+- [API Documentation](#-api-documentation)
+- [AI/ML Models](#-aiml-models)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 1. PostgreSQL & pgAdmin Setup
+## 🎯 Overview
 
-### 1a. Create the database
+**PetPooja AI Copilot** is a comprehensive restaurant management solution that leverages artificial intelligence to optimize revenue and streamline operations. Built for the modern restaurant ecosystem, it provides two powerful modules:
 
-Open **pgAdmin 4** → right-click **Databases** → **Create** → **Database**:
+### **Module 1: Revenue Intelligence Engine 📊**
+Analyzes POS data in real-time to deliver actionable insights on:
+- Menu optimization and pricing strategies
+- Demand forecasting and inventory management
+- Customer churn prediction and segmentation
+- Contribution margin analysis
+- Anomaly detection in sales patterns
 
-- **Database name:** `cafe_odoo`
-- **Owner:** `postgres`
-- Click **Save**
+### **Module 2: AI Voice Ordering Copilot 🎤**
+A multilingual voice assistant that:
+- Accepts voice orders from customers (Hindi + English)
+- Understands natural language intent
+- Handles menu item mapping and customizations
+- Suggests intelligent upsells
+- Generates structured Kitchen Order Tickets (KOT)
 
-Or run in the pgAdmin **Query Tool** / psql:
+---
 
-```sql
-CREATE DATABASE cafe_odoo OWNER postgres;
+## ✨ Key Features
+
+### Revenue Intelligence
+- **Contribution Margin Analysis**: Real-time profitability tracking per menu item
+- **Menu Engineering**: BCG matrix classification (Stars, Puzzles, Plowhorses, Dogs)
+- **Smart Combo Recommendations**: Association rule mining for meal bundles
+- **Demand Forecasting**: 7-day ahead prediction using LightGBM
+- **Price Optimization**: Data-driven pricing suggestions based on demand elasticity
+- **Anomaly Detection**: Isolation Forest for detecting unusual sales patterns
+- **Customer Churn Prediction**: XGBoost-based early warning system
+- **Inventory Alerts**: Low stock warnings with performance signals
+- **AOV Intelligence**: Average Order Value analysis by channel, time, and payment method
+
+### Voice Ordering
+- **Speech-to-Text**: OpenAI Whisper for accurate multilingual transcription
+- **Intent Classification**: DistilBERT-based NLU for understanding customer intent
+- **Semantic Menu Matching**: Sentence Transformers + FAISS for fuzzy item matching
+- **Dialogue Management**: Context-aware conversation flow
+- **Text-to-Speech**: gTTS for natural voice responses
+- **Order Validation**: Real-time menu availability and price calculation
+- **KOT Generation**: Automatic kitchen order creation with priority handling
+- **Multi-variant Support**: Handles Half/Full portions, addons, and customizations
+
+### Additional Features
+- **Real-time Dashboard**: KPIs, revenue trends, and top-selling items
+- **Kitchen Display System**: Live KOT tracking with status updates
+- **Order Management**: Multi-channel order handling (Dine-in, Takeaway, Zomato, Swiggy)
+- **Customer Segmentation**: VIP, Regular, Occasional, Lost, New
+- **Inventory Management**: Ingredient tracking with recipe BOM
+- **Reports & Analytics**: Comprehensive business intelligence reports
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────┐         ┌─────────────────┐         ┌──────────────────┐
+│                 │         │                 │         │                  │
+│  React Frontend │◄────────┤  Node.js/Express│◄────────┤   PostgreSQL     │
+│  (Port 5173)    │         │   Backend       │         │   Database       │
+│                 │         │  (Port 3000)    │         │  (Port 5432)     │
+└─────────────────┘         └────────┬────────┘         └──────────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    │                                  │
+            ┌───────▼────────┐              ┌─────────▼─────────┐
+            │  ML Service    │              │  AI Voice Service │
+            │  (FastAPI)     │              │  (FastAPI)        │
+            │  Port 8000     │              │  Port 8001        │
+            │                │              │                   │
+            │ • Demand       │              │ • Whisper STT     │
+            │ • Churn        │              │ • Intent NLU      │
+            │ • Anomaly      │              │ • LLM (Qwen)      │
+            │ • Menu Opt     │              │ • gTTS/Piper TTS  │
+            └────────────────┘              └───────────────────┘
 ```
 
-### 1b. Load the schema
+---
 
-In pgAdmin, open the Query Tool against `cafe_odoo` and run the contents of [schema.sql](schema.sql):
+## 🛠️ Tech Stack
+
+### Frontend
+- **Framework**: React 18.2 with Vite 5
+- **Styling**: Tailwind CSS 3.4
+- **UI Components**: Lucide React icons
+- **Charts**: Recharts 2.12
+- **Routing**: React Router DOM 6.22
+
+### Backend
+- **Runtime**: Node.js (Express 4.21)
+- **Database Client**: node-postgres (pg)
+- **Authentication**: JWT + bcryptjs
+- **Security**: Helmet, CORS, Rate Limiting
+- **File Upload**: Multer
+- **HTTP Client**: Axios
+
+### ML Service
+- **Framework**: FastAPI 0.100+ with Uvicorn
+- **ML Libraries**: 
+  - scikit-learn (Isolation Forest)
+  - LightGBM (Demand Forecasting)
+  - XGBoost (Churn Prediction)
+  - mlxtend (Association Rules)
+- **Database**: SQLAlchemy + psycopg2
+
+### AI Voice Service
+- **Framework**: FastAPI 0.115+ with Uvicorn
+- **STT**: faster-whisper 1.1 (OpenAI Whisper optimized)
+- **NLU**: sentence-transformers 3.3 (Embeddings + FAISS)
+- **LLM**: Ollama (Qwen/Phi4-mini via llama-cpp)
+- **TTS**: gTTS 2.5 + Piper (optional)
+- **Language**: Python 3.10+
+- **ML Framework**: PyTorch 2.5 (CPU-only)
+
+### Database
+- **RDBMS**: PostgreSQL 16
+- **Tables**: 18 tables (normalized schema)
+- **Indexes**: 13 performance indexes
+
+---
+
+## 📁 Project Structure
 
 ```
-File → Open → schema.sql → Execute (F5)
+AI-Powered-Revenue-Voice-Copilot-for-Restaurants/
+│
+├── backend/                          # Node.js Express API (Port 3000)
+│   ├── src/
+│   │   ├── app.js                    # Main Express app
+│   │   ├── config/
+│   │   │   └── db.js                 # PostgreSQL connection pool
+│   │   ├── controllers/              # Business logic
+│   │   │   ├── authController.js
+│   │   │   ├── dashboardController.js
+│   │   │   ├── revenueController.js
+│   │   │   ├── analyticsController.js
+│   │   │   ├── voiceController.js
+│   │   │   ├── orderController.js
+│   │   │   ├── kotController.js
+│   │   │   ├── customerController.js
+│   │   │   ├── inventoryController.js
+│   │   │   └── productsController.js
+│   │   ├── routes/                   # API routes
+│   │   ├── services/
+│   │   │   └── mlService.js          # ML service client
+│   │   └── middleware/
+│   │       └── auth.js               # JWT authentication
+│   ├── migrations/                   # SQL migrations
+│   └── package.json
+│
+├── frontend/Frontend_mined/          # React App (Port 5173)
+│   ├── src/
+│   │   ├── App.jsx                   # Main router
+│   │   ├── config.js                 # API client
+│   │   ├── components/
+│   │   │   ├── AppLayout.jsx
+│   │   │   └── Navbar.jsx
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Orders.jsx
+│   │   │   ├── VoiceOrder.jsx
+│   │   │   ├── Revenue.jsx
+│   │   │   ├── Analytics.jsx
+│   │   │   ├── Inventory.jsx
+│   │   │   ├── Customers.jsx
+│   │   │   ├── KitchenDisplay.jsx
+│   │   │   └── Products.jsx
+│   │   └── context/
+│   │       └── POSContext.jsx
+│   ├── tests/                        # Playwright tests
+│   └── package.json
+│
+├── ml_service/                       # Python ML Service (Port 8000)
+│   ├── main.py                       # FastAPI app
+│   ├── train.py                      # Model training
+│   ├── models/                       # Trained models (.pkl)
+│   └── requirements.txt
+│
+├── ai_service/                       # AI Voice Service (Port 8001)
+│   ├── main.py                       # FastAPI app
+│   ├── config.py
+│   ├── routers/
+│   │   ├── voice.py
+│   │   ├── health.py
+│   │   └── test_pipeline.py
+│   ├── services/
+│   │   ├── stt/                      # Speech-to-text
+│   │   ├── nlu/                      # Intent detection
+│   │   ├── llm/                      # LLM integration
+│   │   ├── tts/                      # Text-to-speech
+│   │   ├── dialogue/
+│   │   ├── menu/
+│   │   └── database/
+│   ├── models/
+│   │   └── schemas.py
+│   ├── static/
+│   │   └── voicelab.html
+│   └── requirements.txt
+│
+├── ai_service_cloud/                 # Cloud API variant
+├── ai_service_gemini/                # Gemini Live API variant
+│
+├── models/                           # Jupyter notebooks
+│   ├── combo_intelligence.ipynb
+│   ├── demand_forecast.ipynb
+│   ├── churn_prediction.ipynb
+│   ├── anomaly_detection.ipynb
+│   └── menu_optimization.ipynb
+│
+├── schema.sql                        # DB schema (18 tables)
+├── final_static_seed.sql            # Static seed data
+├── generate_data_final (1).py       # Synthetic data generator
+├── context.md
+├── plan.md
+├── features_1.md
+└── VOICE_INTEGRATION_CONTEXT.md
 ```
 
-### 1c. Seed static data
+---
 
-Run [final_static_seed.sql](final_static_seed.sql) in the same Query Tool:
+## 🗄️ Database Schema
 
+### Core Tables (18 total)
+
+#### Static Tables (Menu & Configuration)
+- **restaurants**: Restaurant profile and settings
+- **menu_categories**: Starter, Main, Bread, Rice, Drink, Dessert
+- **menu_items**: 30 items with tags (bestseller, spicy, chef_special)
+- **menu_variants**: Half/Full, Small/Large variants (52 total)
+- **menu_addons**: Extra cheese, extra gravy, etc.
+- **menu_combos**: 8 meal deals and combo offers
+- **combo_items**: Items included in each combo
+- **ingredients**: 25 raw ingredients with stock levels
+- **recipes**: Bill of Materials (ingredient quantities per item)
+- **offers**: 10 promotional offers
+
+#### Transactional Tables
+- **customers**: 500 customers with segments and churn risk
+- **orders**: ~30,000 orders across 1 year
+- **order_items**: ~75,000 line items with revenue and food cost
+- **order_addons**: ~15,000 addon selections
+- **order_payments**: ~32,000 payment records (Cash/UPI/Card/Wallet)
+- **kot**: Kitchen Order Tickets
+- **kot_items**: Line items for each KOT
+- **offer_redemptions**: ~3,000 offer usages
+- **feedback**: ~9,000 customer ratings with sentiment
+- **inventory_log**: Ingredient consumption, restock, wastage logs
+
+### Key Relationships
 ```
-File → Open → final_static_seed.sql → Execute (F5)
+orders → customers
+orders → order_items → menu_items → menu_variants
+order_items → order_addons → menu_addons
+orders → kot → kot_items
+orders → order_payments
+orders → offer_redemptions → offers
+orders → feedback
+order_items → recipes → ingredients → inventory_log
 ```
 
-### 1d. Generate synthetic transactional data (optional but recommended)
+---
 
+## 🚀 Installation
+
+### Prerequisites
+- **Node.js** 18+ and npm
+- **Python** 3.10+
+- **PostgreSQL** 16+
+- **Git**
+
+### 1. Clone the Repository
 ```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants"
+git clone https://github.com/yourusername/AI-Powered-Revenue-Voice-Copilot-for-Restaurants.git
+cd AI-Powered-Revenue-Voice-Copilot-for-Restaurants
+```
+
+### 2. Database Setup
+
+#### Create Database
+```bash
+psql -U postgres
+CREATE DATABASE postgres;
+\c postgres
+```
+
+#### Run Schema
+```bash
+psql -U postgres -d postgres -f schema.sql
+```
+
+#### Seed Static Data
+```bash
+psql -U postgres -d postgres -f final_static_seed.sql
+```
+
+#### Generate Synthetic Data (Optional)
+```bash
 python "generate_data_final (1).py"
 ```
 
-This inserts ~270,000 rows (orders, customers, KOTs, payments, feedback, inventory).
-
-> **Note:** The script auto-reads DB credentials from environment variables or defaults to `postgres/password` on `localhost:5432/cafe_odoo`. Edit the top of the script if your credentials differ.
-
----
-
-## 2. Python AI Service (ai_service_gemini — port 8002)
-
-### 2a. Create and activate a conda environment
+### 3. Backend Setup
 
 ```bash
-conda create -n ai_service python=3.11 -y
-conda activate ai_service
-```
-
-### 2b. Install dependencies
-
-```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants\ai_service_gemini"
-pip install -r requirements.txt
-```
-
-### 2c. Configure environment variables
-
-Edit `ai_service_gemini/.env` — it should already contain your Gemini API key. Confirm the DB URL matches your PostgreSQL setup:
-
-```env
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/cafe_odoo
-GEMINI_API_KEY=your_key_here
-GEMINI_TEXT_MODEL=gemini-2.0-flash
-GEMINI_AUDIO_MODEL=gemini-2.5-flash-native-audio-latest
-```
-
-### 2d. Start the service
-
-```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants\ai_service_gemini"
-uvicorn main:app --host 0.0.0.0 --port 8002 --reload
-```
-
-Verify at: http://localhost:8002/docs
-
-Expected startup output:
-```
-[startup] Cached 30 menu items, 10 tables from DB.
-[startup] ai_service_gemini ready
-```
-
----
-
-## 3. Node.js Backend (port 3000)
-
-### 3a. Install dependencies
-
-```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants\backend"
+cd backend
 npm install
-```
 
-### 3b. Configure environment variables
-
-`backend/.env` is already created. Edit it with your actual PostgreSQL password and a strong JWT secret:
-
-```env
+# Create .env file
+cat > .env << EOF
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=cafe_odoo
+DB_NAME=postgres
 DB_USER=postgres
-DB_PASSWORD=your_password
-
+DB_PASSWORD=postgres
+JWT_SECRET=your_secret_key_here
 NODE_PORT=3000
+ML_SERVICE_URL=http://localhost:8000
+EOF
 
-JWT_SECRET=change_this_to_a_long_random_secret_at_least_32_chars
-
-AI_SERVICE_URL=http://localhost:8002
-```
-
-### 3c. Start the server
-
-**Development (auto-reload on file change):**
-```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants\backend"
-npm run dev
-```
-
-**Production:**
-```bash
 npm start
 ```
 
-Expected output:
-```
-Migration check complete
-PetPooja backend running on http://localhost:3000
-```
-
-Verify at: http://localhost:3000/api/health → `{"status":"ok"}`
-
----
-
-## 4. React Frontend (port 5173)
-
-### 4a. Install dependencies
+### 4. Frontend Setup
 
 ```bash
-cd "d:\projects\AI-Powered-Revenue-Voice-Copilot-for-Restaurants\frontend\Frontend_mined"
+cd frontend/Frontend_mined
 npm install
-```
-
-### 4b. Configure environment variables
-
-`frontend/Frontend_mined/.env` is already created:
-
-```env
-VITE_API_URL=http://localhost:3000/api
-VITE_DATA_DATE=
-```
-
-### 4c. Start the dev server
-
-```bash
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+### 5. ML Service Setup
 
----
-
-## 5. Start Order (All Services Together)
-
-Open **4 terminals** and run one command in each:
-
-| Terminal | Command | URL |
-|----------|---------|-----|
-| 1 — AI Service | `cd ai_service_gemini && uvicorn main:app --port 8002 --reload` | :8002/docs |
-| 2 — Backend | `cd backend && npm run dev` | :3000/api/health |
-| 3 — Frontend | `cd frontend/Frontend_mined && npm run dev` | :5173 |
-| 4 — pgAdmin | (open pgAdmin GUI separately) | localhost:pgAdmin port |
-
-> **Important order:** Start the AI service first (it connects to DB on startup), then the backend, then the frontend.
-
----
-
-## 6. pgAdmin Connection Settings
-
-When connecting pgAdmin to the `cafe_odoo` database:
-
-| Field | Value |
-|-------|-------|
-| Host | `localhost` |
-| Port | `5432` |
-| Maintenance DB | `cafe_odoo` |
-| Username | `postgres` |
-| Password | *(your PostgreSQL password)* |
-| SSL mode | `Prefer` |
-
----
-
-## 7. API Reference
-
-### Revenue Intelligence (`/api/revenue/*`)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/revenue/contribution-margin` | Item-level margin analysis |
-| GET | `/api/revenue/menu-engineering` | Stars / Puzzles / Plowhorses / Dogs matrix |
-| GET | `/api/revenue/top-combos` | Association-rule based combo suggestions |
-| GET | `/api/revenue/aov` | Average order value by channel / time |
-| GET | `/api/revenue/anomalies` | Daily revenue anomaly flags |
-| GET | `/api/revenue/demand-forecast` | Next 7-day item demand forecast |
-| GET | `/api/revenue/price-recommendations` | Suggested price changes |
-
-### Voice Copilot (`/api/voice/*`)
-
-| Method | Endpoint | Body | Description |
-|--------|----------|------|-------------|
-| POST | `/api/voice/process-turn` | multipart: `audio` (file), `session_id`, `language?`, `table_id?` | Full voice turn → transcript + cart + TTS audio |
-| POST | `/api/voice/add-item` | JSON: `session_id`, `product_id`, `item_name`, `quantity?` | Add item via upsell chip |
-| POST | `/api/voice/confirm-order` | JSON: `session_id` | Confirm order → write to DB + KOT |
-| GET | `/api/voice/session/:session_id` | — | Current session state |
-
-### Other
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/menu/items` | All menu items with variants |
-| GET | `/api/orders/today` | Today's orders summary |
-| GET | `/api/kot/pending` | Pending KOTs for kitchen display |
-| GET | `/api/inventory/alerts` | Low-stock warnings |
-| GET | `/api/customers/churn-risk` | High churn-risk customers |
-| POST | `/api/auth/login` | Login → JWT token |
-| POST | `/api/auth/register` | Register a new user |
-
----
-
-## 8. Voice Ordering Flow
-
+```bash
+cd ml_service
+pip install -r requirements.txt
+python main.py
 ```
-Customer speaks into browser mic
-       ↓
-VoiceOrder.jsx   — MediaRecorder captures WebM/Opus
-       ↓
-POST /api/voice/process-turn  (multipart audio)
-       ↓
-Node.js backend  — forwards to ai_service_gemini
-       ↓
-POST :8002/test/voice-chat
-       ↓
-Gemini Live API  — STT + NLU + TTS in one session
-       ↓
-Response: { transcript, intent, cart, audio_base64, upsell_chips, … }
-       ↓
-Frontend plays audio, updates cart UI, shows upsell chips
-       ↓
-Confirm button → POST /api/voice/confirm-order
-       ↓
-ai_service writes orders + order_items + KOT to PostgreSQL
+
+### 6. AI Voice Service Setup
+
+```bash
+cd ai_service
+pip install -r requirements.txt
+
+# Install Ollama (if using local LLM)
+# Visit: https://ollama.ai/download
+ollama pull qwen2.5:7b-instruct
+
+python main.py
 ```
 
 ---
 
-## 9. Environment Files Summary
+## 🏃 Running the Application
 
-| File | Purpose |
-|------|---------|
-| `backend/.env` | DB credentials, JWT secret, NODE_PORT, AI_SERVICE_URL |
-| `frontend/Frontend_mined/.env` | VITE_API_URL pointing to backend |
-| `ai_service_gemini/.env` | DATABASE_URL, GEMINI_API_KEY, model names |
+### Start All Services
+
+Open 4 terminal windows:
+
+#### Terminal 1: Backend
+```bash
+cd backend
+npm start
+# Running on http://localhost:3000
+```
+
+#### Terminal 2: Frontend
+```bash
+cd frontend/Frontend_mined
+npm run dev
+# Running on http://localhost:5173
+```
+
+#### Terminal 3: ML Service
+```bash
+cd ml_service
+python main.py
+# Running on http://localhost:8000
+```
+
+#### Terminal 4: AI Voice Service
+```bash
+cd ai_service
+python main.py
+# Running on http://localhost:8001
+```
+
+### Access the Application
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:3000/api
+- **ML Service**: http://localhost:8000/docs
+- **Voice Service**: http://localhost:8001/docs
 
 ---
 
-## 10. Troubleshooting
+## 📡 API Documentation
 
-| Problem | Fix |
-|---------|-----|
-| `ECONNREFUSED :5432` | PostgreSQL service is not running. Start it via Services or `pg_ctl start` |
-| `relation "menu_items" does not exist` | Run `schema.sql` then `final_static_seed.sql` in pgAdmin |
-| `ECONNREFUSED :8002` | AI service not started. Run `uvicorn main:app --port 8002` in `ai_service_gemini/` |
-| `JWT secret missing` | Set `JWT_SECRET` in `backend/.env` |
-| Microphone permission denied | Browser must be served over HTTPS or `localhost` for mic access |
-| `GEMINI_API_KEY` empty | Add your key to `ai_service_gemini/.env` |
-| Frontend shows stale data | Verify `VITE_API_URL` in `frontend/Frontend_mined/.env` points to `:3000` |
+### Module 1: Revenue Intelligence
+
+#### Contribution Margin
+```http
+GET /api/revenue/contribution-margin
+```
+Returns item-level profitability analysis with margin percentages.
+
+#### Menu Engineering
+```http
+GET /api/revenue/menu-engineering
+```
+BCG matrix classification: Stars, Puzzles, Plowhorses, Dogs.
+
+#### Top Combos
+```http
+GET /api/revenue/top-combos
+```
+Association rule mining for frequently ordered item combinations.
+
+#### Demand Forecast
+```http
+GET /api/revenue/demand-forecast?days=7
+```
+LightGBM predictions for next N days per item.
+
+#### Price Recommendations
+```http
+GET /api/revenue/price-recommendations
+```
+Data-driven pricing suggestions based on demand elasticity.
+
+#### Anomaly Detection
+```http
+GET /api/revenue/anomalies
+```
+Isolation Forest detection of unusual sales patterns.
+
+#### Churn Prediction
+```http
+GET /api/customers/churn-risk
+```
+XGBoost predictions for customers at risk of churning.
+
+### Module 2: Voice Ordering
+
+#### Transcribe Audio
+```http
+POST /api/voice/transcribe
+Content-Type: multipart/form-data
+
+audio: <file>
+```
+
+#### Detect Intent
+```http
+POST /api/voice/intent
+Content-Type: application/json
+
+{
+  "text": "मुझे एक बटर चिकन चाहिए"
+}
+```
+
+#### Process Voice Turn
+```http
+POST /api/voice/process-turn
+Content-Type: application/json
+
+{
+  "text": "मुझे एक बटर चिकन चाहिए",
+  "session_id": "abc123"
+}
+```
+
+#### Confirm Order
+```http
+POST /api/voice/confirm-order
+Content-Type: application/json
+
+{
+  "session_id": "abc123",
+  "table_number": 5
+}
+```
+
+### General Endpoints
+
+```http
+GET  /api/menu/items
+POST /api/orders
+GET  /api/orders/today
+GET  /api/kot/pending
+PUT  /api/kot/:id/status
+```
+
+---
+
+## 🤖 AI/ML Models
+
+### 1. Demand Forecasting (LightGBM)
+- **Input**: Day, hour, month, lag features, festival flags
+- **Output**: Predicted quantity per item
+- **Retrain**: Monthly on new sales data
+
+### 2. Anomaly Detection (Isolation Forest)
+- **Input**: Daily revenue, order count, AOV
+- **Output**: Anomaly score (0-1)
+- **Threshold**: 95th percentile for alerts
+
+### 3. Churn Prediction (XGBoost)
+- **Input**: Days since visit, visit frequency, lifetime spend
+- **Output**: Churn probability (0-1)
+- **Threshold**: 0.7 for high-risk flagging
+
+### 4. Intent Classification (DistilBERT)
+- **Input**: Voice-transcribed text (Hindi+English)
+- **Output**: Intent label (greeting, order, modify, confirm, cancel)
+- **Languages**: Supports code-mixed Hindi-English
+
+### 5. Semantic Menu Matching (Sentence Transformers + FAISS)
+- **Input**: Spoken item name (e.g., "butter chicken")
+- **Output**: Top 3 matched menu items with similarity scores
+- **Model**: all-MiniLM-L6-v2 embeddings
+
+### 6. Menu Optimization (Association Rules)
+- **Algorithm**: FP-Growth with Apriori
+- **Input**: Transaction history
+- **Output**: Frequent itemsets and combo suggestions
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. **Fork the repository**
+2. **Create a feature branch**
+   ```bash
+   git checkout -b feature/amazing-feature
+   ```
+3. **Commit your changes**
+   ```bash
+   git commit -m 'Add amazing feature'
+   ```
+4. **Push to the branch**
+   ```bash
+   git push origin feature/amazing-feature
+   ```
+5. **Open a Pull Request**
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+
+---
+
+## 🙏 Acknowledgments
+
+- **PetPooja** for the problem statement and inspiration
+- **OpenAI** for Whisper speech recognition
+- **Hugging Face** for transformer models
+- **LightGBM** and **XGBoost** teams for ML frameworks
+- **FastAPI** and **React** communities
+
+---
+
+## 🔮 Future Roadmap
+
+- [ ] Mobile app (React Native)
+- [ ] Multi-restaurant support (chain management)
+- [ ] Real-time inventory sync with suppliers
+- [ ] Advanced churn intervention campaigns
+- [ ] WhatsApp ordering integration
+- [ ] Dynamic pricing based on occupancy
+- [ ] Customer sentiment analysis from reviews
+- [ ] Multi-language support (Tamil, Bengali, Telugu)
+- [ ] Integration with food delivery platforms
+- [ ] Predictive maintenance for kitchen equipment
+
+---
+
+<div align="center">
+  <strong>Built with ❤️ for the Restaurant Industry</strong>
+  <br><br>
+  <a href="#-table-of-contents">⬆️ Back to Top</a>
+</div>
+
