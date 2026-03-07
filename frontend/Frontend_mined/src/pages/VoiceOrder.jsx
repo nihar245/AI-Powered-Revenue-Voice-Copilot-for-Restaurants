@@ -64,12 +64,17 @@ export default function VoiceOrder() {
   const [activeCall, setActiveCall]           = useState(null)   // live phone call cart
   const [phoneConfirming, setPhoneConfirming]  = useState(false)
   const [phoneConfirmed, setPhoneConfirmed]    = useState(false)
+  // Real-time conversation history: [{ role: 'user'|'ai', text, timestamp, key }]
+  const [conversationHistory, setConversationHistory] = useState([])
 
   // --- refs ---
   const sessionIdRef    = useRef(null)
   const mediaRecRef     = useRef(null)
   const chunksRef       = useRef([])
   const audioRef        = useRef(new Audio())
+  const convEndRef      = useRef(null) // auto-scroll anchor for chat
+  const confirmRef      = useRef(null)  // stable ref for handleConfirm (avoids circular dep)
+  const pollActiveCallRef = useRef(null) // stable ref to trigger immediate active-call re-poll
 
   // Generate session ID once per page load
   useEffect(() => {
@@ -109,7 +114,7 @@ export default function VoiceOrder() {
     return () => clearInterval(id)
   }, [])
 
-  // Poll active phone call state every 3 s
+  // Poll active phone call state every 1.5 s (fast enough to feel real-time)
   useEffect(() => {
     const poll = () => {
       const token = localStorage.getItem('token')
@@ -123,8 +128,9 @@ export default function VoiceOrder() {
         })
         .catch(() => {})
     }
+    pollActiveCallRef.current = poll // expose so applyTurnResult can trigger immediately
     poll()
-    const id = setInterval(poll, 3_000)
+    const id = setInterval(poll, 1_500)
     return () => clearInterval(id)
   }, [])
 
@@ -202,19 +208,40 @@ export default function VoiceOrder() {
     }
   }, [language, tableId])
 
+  // Auto-scroll conversation to bottom whenever new messages arrive
+  useEffect(() => {
+    convEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [conversationHistory])
+
   // --- apply response from voice-chat / add-item ---
   const applyTurnResult = useCallback((data) => {
-    if (data.transcript)                              setTranscript(data.transcript)
-    if (data.response_text || data.response_display)  setResponseText(data.response_display || data.response_text)
+    const userText = data.transcript
+    const aiText   = data.response_display || data.response_text
+    const now      = Date.now()
+
+    // Accumulate chat history
+    setConversationHistory(prev => {
+      const next = [...prev]
+      if (userText) next.push({ role: 'user', text: userText, timestamp: now,   key: `u-${now}` })
+      if (aiText)   next.push({ role: 'ai',   text: aiText,   timestamp: now+1, key: `a-${now}` })
+      return next
+    })
+
+    if (userText)   setTranscript(userText)
+    if (aiText)     setResponseText(aiText)
     if (Array.isArray(data.cart))  setCart(formatCart(data.cart))
     if (data.cart_total)          setCartTotal(data.cart_total)
-    if (data.cart_events)         setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
+    if (data.cart_events)         setCartEvents(prev => [...prev, ...data.cart_events].slice(-20))
     if (data.upsell_chips)        setUpsellChips(data.upsell_chips)
     if (data.active_combos)       setActiveCombos(data.active_combos)
     if (data.order_number)        setOrderNumber(data.order_number)
     setClarification(data.pending_clarification || null)
     if (data.audio_base64)        playAudioBase64(data.audio_base64, data.audio_mime || 'audio/wav')
-    if (data.intent === 'confirm_order') setConfirmed(true)
+    if (data.intent === 'confirm_order' && !confirmed) {
+      // AI detected confirm intent — auto-trigger Node.js DB write
+      // (Python deliberately leaves the cart populated for Node to fetch)
+      setTimeout(() => confirmRef.current?.(), 0)
+    }
     if (data.intent)                setIntent(data.intent)
     if (data.timings_ms)            setTimings(data.timings_ms)
     setUpsellSuggestion(data.upsell_suggestion || null)
@@ -222,6 +249,8 @@ export default function VoiceOrder() {
     // Store raw response for debug panel (strip the large audio blob)
     const { audio_base64: _omit, ...displayData } = data
     setLastResponse(displayData)
+    // If a phone call is active, immediately refresh its cart instead of waiting for next poll
+    pollActiveCallRef.current?.()
   }, [playAudioBase64])
 
   // --- confirm phone order from dashboard ---
@@ -300,7 +329,13 @@ export default function VoiceOrder() {
       if (!res.ok) throw new Error(`Confirm failed ${res.status}`)
       const data = await res.json()
       setOrderNumber(data.order_number || null)
-      if (data.cart_events) setCartEvents(prev => [...prev, ...data.cart_events].slice(-10))
+      if (data.cart_events) setCartEvents(prev => [...prev, ...data.cart_events].slice(-20))
+      // Add confirmation message to conversation history
+      const confirmMsg = data.message || `Order confirmed — sent to kitchen`
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'ai', text: `✅ ${confirmMsg}`, timestamp: Date.now(), key: `confirm-${Date.now()}` },
+      ])
       setCart([])
       setConfirmed(true)
     } catch (e) {
@@ -309,6 +344,7 @@ export default function VoiceOrder() {
       setConfirming(false)
     }
   }, [])
+  confirmRef.current = handleConfirm // keep ref in sync for applyTurnResult
 
   // --- reset ---
   const reset = useCallback(() => {
@@ -339,6 +375,7 @@ export default function VoiceOrder() {
     setShowRawJson(false)
     setPhoneConfirming(false)
     setPhoneConfirmed(false)
+    setConversationHistory([])
   }, [])
 
   // ---- derived ----
@@ -422,28 +459,66 @@ export default function VoiceOrder() {
             </div>
           </div>
 
-          {/* Transcript + AI Response */}
-          {transcript && (
-            <div className="card p-4 animate-fade-in space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-surface-400 uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                  <Zap size={11} className="text-primary-600" /> You said
+          {/* Real-time conversation history */}
+          {conversationHistory.length > 0 && (
+            <div className="card overflow-hidden animate-fade-in">
+              <div className="px-4 py-3 bg-surface-50 border-b border-surface-200 flex items-center justify-between">
+                <p className="text-xs text-surface-600 uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                  <MessageSquare size={11} className="text-primary-500" /> Conversation
                 </p>
-                {intent && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-100 font-mono capitalize">
-                    {intent.replace(/_/g, ' ')}
-                  </span>
-                )}
-              </div>
-              <div className="bg-surface-50 rounded-lg p-3 font-mono text-sm text-surface-700 border border-surface-200">
-                {transcript}
-              </div>
-              {responseText && (
-                <div className="bg-gradient-to-r from-primary-50 to-violet-50 rounded-lg p-3 border border-primary-100 flex items-start gap-2">
-                  <MessageSquare size={14} className="text-primary-500 mt-0.5 shrink-0" />
-                  <p className="text-sm text-surface-800 leading-relaxed">{responseText}</p>
+                <div className="flex items-center gap-2">
+                  {intent && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 border border-primary-100 font-mono capitalize">
+                      {intent.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  {playingAudio && (
+                    <span className="flex items-center gap-1 text-[10px] text-primary-500">
+                      <Volume2 size={10} className="animate-pulse" /> Speaking…
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
+              <div className="p-4 space-y-3 max-h-72 overflow-y-auto bg-white">
+                {conversationHistory.map(msg => (
+                  <div
+                    key={msg.key}
+                    className={`flex items-end gap-2 animate-fade-in ${
+                      msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                    }`}
+                  >
+                    {/* Avatar */}
+                    <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold ${
+                      msg.role === 'user'
+                        ? 'bg-primary-600'
+                        : 'bg-gradient-to-br from-violet-500 to-primary-500'
+                    }`}>
+                      {msg.role === 'user' ? 'U' : 'AI'}
+                    </div>
+                    {/* Bubble */}
+                    <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                      msg.role === 'user'
+                        ? 'bg-primary-600 text-white rounded-br-sm'
+                        : 'bg-surface-100 text-surface-800 border border-surface-200 rounded-bl-sm'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                {/* Processing indicator */}
+                {processing && (
+                  <div className="flex items-end gap-2">
+                    <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center bg-gradient-to-br from-violet-500 to-primary-500 text-white text-[10px] font-bold">AI</div>
+                    <div className="bg-surface-100 border border-surface-200 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1.5 items-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-surface-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
+                {/* Auto-scroll anchor */}
+                <div ref={convEndRef} />
+              </div>
             </div>
           )}
 
@@ -529,11 +604,22 @@ export default function VoiceOrder() {
             <div className="px-5 py-3.5 bg-surface-900 border-b border-surface-800 flex items-center gap-2">
               <ShoppingCart size={15} className="text-primary-400" />
               <span className="text-sm font-semibold text-white">Order Summary</span>
+              {cart.length > 0 && !confirmed && (
+                <span className="ml-auto flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] text-emerald-300 font-medium">{cart.length} item{cart.length !== 1 ? 's' : ''}</span>
+                </span>
+              )}
             </div>
 
             <div className="p-5">
-              {cart.length === 0 && !confirmed ? (
+              {cart.length === 0 && !confirmed && !processing ? (
                 <p className="text-surface-400 text-sm text-center py-6">Start voice ordering to see items here</p>
+              ) : cart.length === 0 && !confirmed && processing ? (
+                <div className="py-6 flex flex-col items-center gap-2">
+                  <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+                  <p className="text-surface-400 text-xs">Processing response…</p>
+                </div>
               ) : confirmed ? (
                 <div className="text-center py-4">
                   <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-2">
@@ -541,10 +627,15 @@ export default function VoiceOrder() {
                   </div>
                   <p className="text-emerald-600 font-semibold text-sm">Order Confirmed!</p>
                   {orderNumber && (
-                    <p className="text-surface-400 text-xs mt-1">Order #{orderNumber}</p>
+                    <p className="text-surface-700 text-xs font-mono mt-1 bg-surface-50 border border-surface-200 rounded px-2 py-1 inline-block">
+                      #{orderNumber}
+                    </p>
                   )}
-                  <p className="text-surface-400 text-xs mt-1">Sent to kitchen</p>
-                  <button onClick={reset} className="mt-3 btn-ghost text-xs flex items-center gap-1.5 mx-auto">
+                  <p className="text-surface-400 text-xs mt-2 flex items-center justify-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Sent to kitchen display
+                  </p>
+                  <button onClick={reset} className="mt-4 btn-ghost text-xs flex items-center gap-1.5 mx-auto">
                     <RotateCcw size={12} /> New Order
                   </button>
                 </div>
@@ -562,7 +653,7 @@ export default function VoiceOrder() {
                         ? item.modifiers.size.charAt(0).toUpperCase() + item.modifiers.size.slice(1)
                         : item.variant_name
                       return (
-                        <div key={item._key} className="flex items-start justify-between text-sm">
+                        <div key={item._key} className="flex items-start justify-between text-sm animate-fade-in border-b border-surface-100 pb-2 last:border-0 last:pb-0">
                           <div className="flex-1 min-w-0">
                             <p className="text-surface-900 font-medium">{item.name}</p>
                             {sizeLabel && (
@@ -671,11 +762,12 @@ export default function VoiceOrder() {
 
                   {/* Live conversation transcript */}
                   {activeCall.transcript && activeCall.transcript.length > 0 && (
-                    <div className="mb-3 border border-surface-200 rounded-lg p-3 bg-surface-50 space-y-2">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-surface-400 mb-1 flex items-center gap-1">
+                    <div className="mb-3 border border-surface-200 rounded-lg overflow-hidden">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-surface-400 flex items-center gap-1 px-3 pt-2 pb-1 bg-surface-50 border-b border-surface-100 sticky top-0">
                         <MessageSquare size={9} /> Live Conversation
                       </p>
-                      {activeCall.transcript.slice(-3).map((t, i) => (
+                      <div className="max-h-48 overflow-y-auto p-3 bg-surface-50 space-y-2">
+                      {activeCall.transcript.map((t, i) => (
                         <div key={i} className="space-y-1">
                           {t.customer && (
                             <div className="flex items-start gap-1.5">
@@ -691,6 +783,7 @@ export default function VoiceOrder() {
                           )}
                         </div>
                       ))}
+                      </div>
                     </div>
                   )}
 

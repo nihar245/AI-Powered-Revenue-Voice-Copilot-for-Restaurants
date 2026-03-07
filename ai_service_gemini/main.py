@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from routers import voice, health, test_pipeline, twilio_call
 from services.database.connection import connect_db, disconnect_db
-from services.database.queries import fetch_active_menu, fetch_tables
+from services.database.queries import fetch_active_combos, fetch_active_menu, fetch_active_offers, fetch_tables
 from services.audio.twilio_bridge import get_greeting_mulaw, get_wait_mulaw
 
 
@@ -21,8 +21,12 @@ async def lifespan(app: FastAPI):
     try:
         app.state.menu   = await fetch_active_menu()
         app.state.tables = await fetch_tables()
+        app.state.combos = await fetch_active_combos()
+        app.state.offers = await fetch_active_offers()
         print(f"[startup] Cached {len(app.state.menu)} menu items, "
-              f"{len(app.state.tables)} tables from DB.")
+              f"{len(app.state.tables)} tables, "
+              f"{len(app.state.combos)} combos, "
+              f"{len(app.state.offers)} offers from DB.")
     except Exception as exc:
         print(f"[startup] WARNING — could not prefetch menu/tables: {exc}")
         app.state.menu   = []

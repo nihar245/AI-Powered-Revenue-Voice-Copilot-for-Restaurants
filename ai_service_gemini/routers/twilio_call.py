@@ -34,6 +34,7 @@ import json
 import logging
 import re
 import time
+import traceback as _traceback
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -53,8 +54,11 @@ from services.audio.twilio_bridge import (
     mulaw_to_wav8k,
     wav_to_mulaw8k,
 )
+from services.database.connection import get_pool
 from services.database.queries import (
+    fetch_active_combos,
     fetch_active_menu,
+    fetch_active_offers,
     generate_order_number,
     insert_order,
 )
@@ -68,9 +72,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/twilio", tags=["twilio"])
 
 # ── Menu cache ────────────────────────────────────────────────────────────────
+_MENU_TTL   = 60.0
+_COMBO_TTL  = 120.0
 _menu_cache:    list[dict] = []
 _menu_cache_ts: float      = 0.0
-_MENU_TTL = 60.0
+_combo_cache:   list[dict] = []
+_offer_cache:   list[dict] = []
+_combo_cache_ts: float     = 0.0
 
 
 async def _get_menu() -> list[dict]:
@@ -80,6 +88,81 @@ async def _get_menu() -> list[dict]:
     _menu_cache    = await fetch_active_menu()
     _menu_cache_ts = time.monotonic()
     return _menu_cache
+
+
+async def _get_combos_and_offers() -> tuple[list[dict], list[dict]]:
+    global _combo_cache, _offer_cache, _combo_cache_ts
+    if _combo_cache and (time.monotonic() - _combo_cache_ts) < _COMBO_TTL:
+        return _combo_cache, _offer_cache
+    _combo_cache    = await fetch_active_combos()
+    _offer_cache    = await fetch_active_offers()
+    _combo_cache_ts = time.monotonic()
+    return _combo_cache, _offer_cache
+
+
+@router.get("/debug/db-status")
+async def debug_db_status() -> dict:
+    """
+    Quick health check: is the database pool alive and can we reach relevant tables?
+    Hit GET /twilio/debug/db-status to diagnose DB connectivity issues.
+    """
+    pool = get_pool()
+    if pool is None:
+        return {"pool": None, "connected": False, "error": "Pool is None — DB never connected or connection failed at startup"}
+
+    try:
+        row = await pool.fetchrow("SELECT COUNT(*)::int AS cnt FROM orders")
+        orders_count = row["cnt"]
+    except Exception as exc:
+        return {"pool": repr(pool), "connected": False, "error": f"Query failed: {exc}",
+                "traceback": _traceback.format_exc()}
+
+    try:
+        menu_row = await pool.fetchrow("SELECT COUNT(*)::int AS cnt FROM menu_items WHERE is_available=TRUE")
+        menu_count = menu_row["cnt"]
+    except Exception as exc:
+        menu_count = f"ERROR: {exc}"
+
+    try:
+        kot_row = await pool.fetchrow("SELECT COUNT(*)::int AS cnt FROM kot")
+        kot_count = kot_row["cnt"]
+    except Exception as exc:
+        kot_count = f"ERROR: {exc}"
+
+    return {
+        "connected": True,
+        "pool_size":     pool.get_size(),
+        "pool_idle":     pool.get_idle_size(),
+        "orders_count":  orders_count,
+        "menu_items":    menu_count,
+        "kot_count":     kot_count,
+    }
+
+
+@router.get("/debug/recent-orders")
+async def debug_recent_orders(limit: int = 10) -> dict:
+    """
+    Return the most recent orders from the DB directly (bypass Node.js backend).
+    Useful to confirm whether voice orders are actually being written.
+    """
+    pool = get_pool()
+    if pool is None:
+        return {"error": "DB pool is None", "orders": []}
+    try:
+        rows = await pool.fetch("""
+            SELECT o.order_id, o.placed_by, o.channel, o.status,
+                   o.subtotal, o.tax_amt, o.total, o.payment_status,
+                   o.placed_at,
+                   COUNT(oi.line_id) AS item_count
+            FROM orders o
+            LEFT JOIN order_items oi ON oi.order_id = o.order_id
+            GROUP BY o.order_id
+            ORDER BY o.placed_at DESC
+            LIMIT $1
+        """, limit)
+        return {"orders": [dict(r) for r in rows]}
+    except Exception as exc:
+        return {"error": str(exc), "traceback": _traceback.format_exc(), "orders": []}
 
 
 # ── In-memory call log ────────────────────────────────────────────────────────
@@ -521,19 +604,88 @@ async def _run_turn(
         logger.info("[twilio] state → AWAITING_KITCHEN_CONFIRM  session=%s", session_id[:8])
 
     elif intent == Intent.CONFIRM_ORDER:
+        # ── DEBUG: log everything about this confirmation attempt ──────────────────
+        _pool_obj = get_pool()
+        print(
+            f"\n[DEBUG CONFIRM ORDER] ================================================",
+            flush=True,
+        )
+        print(f"[DEBUG CONFIRM ORDER] session_id    = {session_id}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] cur_state     = {cur_state}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] cart_len      = {len(cart)}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] cart_contents = {cart}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] cmd_hint raw  = {full_cmd!r}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] gemini_cmd    = {gemini_cmd!r}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] intent_str    = {intent_str!r}", flush=True)
+        print(f"[DEBUG CONFIRM ORDER] DB pool       = {_pool_obj!r}", flush=True)
+        logger.info(
+            "[twilio][CONFIRM_DEBUG] CONFIRM_ORDER triggered  cart_len=%d  state=%s  "
+            "pool=%r  session=%s",
+            len(cart), cur_state, _pool_obj, session_id,
+        )
+
         # Accept confirm_order if cart is non-empty regardless of current dialogue state.
         # Gemini's [CMD: confirm_order] tag is authoritative — no extra state guard needed.
         if cart:
             subtotal, tax, total = get_cart_total(cart)
             order_number = await generate_order_number()
-            await insert_order(
-                order_number=order_number,
-                cart=cart,
-                subtotal=subtotal,
-                tax=tax,
-                total=total,
-                placed_by="phone_order",
+            print(
+                f"[DEBUG CONFIRM ORDER] order_number={order_number}  "
+                f"subtotal={subtotal:.2f}  tax={tax:.2f}  total={total:.2f}",
+                flush=True,
             )
+            logger.info(
+                "[twilio][CONFIRM_DEBUG] Calling insert_order  order_number=%s  "
+                "total=%.2f  items=%s",
+                order_number, total,
+                [(c.get('name'), c.get('quantity'), c.get('unit_price')) for c in cart],
+            )
+            try:
+                _order_id = await insert_order(
+                    order_number=order_number,
+                    cart=cart,
+                    subtotal=subtotal,
+                    tax=tax,
+                    total=total,
+                    placed_by="phone_order",
+                    channel="phone",
+                )
+                print(
+                    f"[DEBUG CONFIRM ORDER] ✅ insert_order SUCCESS  "
+                    f"order_id={_order_id}  order_number={order_number}",
+                    flush=True,
+                )
+                logger.info(
+                    "[twilio][CONFIRM_DEBUG] ✅ insert_order SUCCESS  "
+                    "order_id=%s  order_number=%s  session=%s",
+                    _order_id, order_number, session_id,
+                )
+            except Exception as _db_exc:
+                _tb_str = _traceback.format_exc()
+                print(f"[DEBUG CONFIRM ORDER] ❌ insert_order FAILED!", flush=True)
+                print(f"[DEBUG CONFIRM ORDER] Exception type : {type(_db_exc).__name__}", flush=True)
+                print(f"[DEBUG CONFIRM ORDER] Exception msg  : {_db_exc}", flush=True)
+                print(f"[DEBUG CONFIRM ORDER] Full traceback :\n{_tb_str}", flush=True)
+                print(f"[DEBUG CONFIRM ORDER] cart at failure: {cart}", flush=True)
+                print(f"[DEBUG CONFIRM ORDER] DB pool at fail: {get_pool()!r}", flush=True)
+                logger.error(
+                    "[twilio][CONFIRM_DEBUG] ❌ insert_order FAILED  session=%s\n"
+                    "Exception: %s\nTraceback:\n%s",
+                    session_id, _db_exc, _tb_str,
+                )
+                # Still hang up and play audio so the call doesn't freeze.
+                # The operator can re-confirm via POST /twilio/confirm-phone-order/{sid}.
+                call_log_ref["status"] = "order_db_failed"
+                call_log_ref["error"]  = f"{type(_db_exc).__name__}: {_db_exc}"
+                call_log_ref["turns"]  = turn.turn_number + 1
+                call_log_ref.setdefault("transcript", []).append({
+                    "turn":     turn.turn_number,
+                    "customer": transcript[:200] if transcript else "",
+                    "aria":     response_text[:200] if response_text else "",
+                    "intent":   intent.value,
+                })
+                return True, wav_out
+
             logger.info(
                 "[twilio] ORDER CONFIRMED  #%s  Rs.%.0f  session=%s",
                 order_number, total, session_id[:8],
@@ -552,6 +704,17 @@ async def _run_turn(
                 "intent":   intent.value,
             })
             return True, wav_out
+        else:
+            print(
+                f"[DEBUG CONFIRM ORDER] ⚠️  CONFIRM_ORDER intent but CART IS EMPTY!  "
+                f"session={session_id}  state={cur_state}",
+                flush=True,
+            )
+            logger.warning(
+                "[twilio][CONFIRM_DEBUG] ⚠️  CONFIRM_ORDER but cart is EMPTY  "
+                "session=%s  state=%s",
+                session_id, cur_state,
+            )
 
     # Update call log transcript
     call_log_ref["turns"] = turn.turn_number + 1
@@ -596,6 +759,8 @@ async def twilio_stream(websocket: WebSocket) -> None:
     call_sid:     str | None = None
     session_id:   str | None = None
     menu_items:   list[dict] = []
+    combo_deals:  list[dict] = []
+    active_offers: list[dict] = []
     turn_counter: int        = 0
 
     # Shared flag — safe because asyncio is single-threaded (no preemption between awaits)
@@ -629,7 +794,11 @@ async def twilio_stream(websocket: WebSocket) -> None:
                 if gemini_session is None:
                     gemini_session = GeminiCallSession()
                     try:
-                        static_instr = build_live_system_instruction(menu_items, [])
+                        static_instr = build_live_system_instruction(
+                            menu_items, [],
+                            combo_deals=combo_deals,
+                            active_offers=active_offers,
+                        )
                         await gemini_session.open(static_instr)
                     except Exception as exc:
                         logger.error("[twilio] Failed to open Gemini session: %s", exc)
@@ -650,7 +819,19 @@ async def twilio_stream(websocket: WebSocket) -> None:
                         item, menu_items, call_log_entry, gemini_session,
                     )
                 except Exception as exc:
-                    logger.exception("[twilio] worker error: %s", exc)
+                    _exc_tb = _traceback.format_exc()
+                    print(
+                        f"[DEBUG WORKER] ❌ _run_turn EXCEPTION  "
+                        f"session={session_id}  turn={item.turn_number}\n"
+                        f"Exception: {type(exc).__name__}: {exc}\n"
+                        f"Traceback:\n{_exc_tb}",
+                        flush=True,
+                    )
+                    logger.exception(
+                        "[twilio][WORKER_DEBUG] ❌ _run_turn raised  "
+                        "session=%s  turn=%s\nTraceback:\n%s",
+                        session_id, item.turn_number, _exc_tb,
+                    )
                 finally:
                     # Cancel the wait-audio task BEFORE sending Aria's response
                     # to prevent the two streams from interleaving / overlapping.
@@ -725,6 +906,7 @@ async def twilio_stream(websocket: WebSocket) -> None:
                 caller      = start_info.get("customParameters", {}).get("From", "")
                 session_id  = call_sid
                 menu_items  = await _get_menu()
+                combo_deals, active_offers = await _get_combos_and_offers()
                 turn_counter = 0
 
                 call_log_entry.update({

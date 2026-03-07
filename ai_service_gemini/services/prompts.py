@@ -25,42 +25,6 @@ MODIFIER_CATALOGUE: dict[str, dict] = {
     "gulab jamun":    {"extras": ["warm", "cold", "extra sugar syrup"]},
 }
 
-# ─── Combo deals catalogue ────────────────────────────────────────────────────
-# Structure: list of {name, items (names), saving, description}
-COMBO_DEALS = [
-    {
-        "name":        "Starter Combo",
-        "items":       ["Paneer Tikka", "Masala Chai"],
-        "saving":      20,
-        "description": "Paneer Tikka + Masala Chai — save ₹20",
-    },
-    {
-        "name":        "Biryani Meal",
-        "items":       ["Veg Biryani", "Mango Lassi"],
-        "saving":      25,
-        "description": "Veg Biryani + Mango Lassi — save ₹25",
-    },
-    {
-        "name":        "Butter Chicken Feast",
-        "items":       ["Butter Chicken", "Garlic Naan", "Dal Makhani"],
-        "saving":      40,
-        "description": "Butter Chicken + Garlic Naan + Dal Makhani — save ₹40",
-    },
-]
-
-# ─── Upsell map: if X is in cart, suggest Y ──────────────────────────────────
-UPSELL_MAP: list[tuple[str, str]] = [
-    ("Veg Biryani",     "Mango Lassi"),
-    ("Butter Chicken",  "Garlic Naan"),
-    ("Butter Chicken",  "Dal Makhani"),
-    ("Paneer Tikka",    "Masala Chai"),
-    ("Aloo Paratha",    "Masala Chai"),
-    ("Aloo Paratha",    "Mango Lassi"),
-    ("Gulab Jamun",     "Masala Chai"),
-    ("Dal Makhani",     "Garlic Naan"),
-]
-
-
 _LANG_NAMES: dict[str, str] = {
     "hi": "Hindi (हिन्दी)",
     "ta": "Tamil (தமிழ்)",
@@ -69,6 +33,64 @@ _LANG_NAMES: dict[str, str] = {
     "pa": "Punjabi (ਪੰਜਾਬੀ)",
     "en": "English",
 }
+
+
+def _build_combo_text(combo_deals: list[dict]) -> str:
+    """
+    Format DB combos (from fetch_active_combos) into the prompt section.
+    Each combo: { name, description, selling_price, items: [{item_name, qty}] }
+    """
+    if not combo_deals:
+        return "  (No active combo deals at the moment)"
+    lines = []
+    for c in combo_deals:
+        item_parts = " + ".join(
+            f"{it['item_name']}{' ×' + str(it['qty']) if it['qty'] > 1 else ''}"
+            for it in c.get("items", [])
+        )
+        price_str = f"₹{c['selling_price']:.0f}" if c.get("selling_price") else ""
+        desc = c.get("description") or item_parts
+        lines.append(f"  • {c['name']} ({item_parts}) — {price_str}  {desc}")
+    return "\n".join(lines)
+
+
+def _build_upsell_hint(combo_deals: list[dict], cart_names: list[str]) -> str:
+    """
+    Given the current cart item names and DB combos, produce a hint telling
+    Aria which combos the customer is one item away from completing.
+    """
+    if not combo_deals or not cart_names:
+        return ""
+    cart_lower = {n.lower() for n in cart_names}
+    hints = []
+    for c in combo_deals:
+        combo_item_names = [it["item_name"] for it in c.get("items", [])]
+        combo_lower      = {n.lower() for n in combo_item_names}
+        missing          = combo_lower - cart_lower
+        if missing and len(missing) < len(combo_lower):
+            missing_str = " and ".join(m.title() for m in missing)
+            hints.append(
+                f"Add {missing_str} to complete the '{c['name']}' combo "
+                f"(₹{c['selling_price']:.0f} for {' + '.join(combo_item_names)})"
+            )
+    return "; ".join(hints) if hints else ""
+
+
+def _build_offers_text(active_offers: list[dict]) -> str:
+    """Format active offers (from fetch_active_offers) into a prompt section."""
+    if not active_offers:
+        return ""
+    lines = []
+    for o in active_offers:
+        if o["type"] == "pct":
+            disc = f"{o['discount_value']:.0f}% off"
+        elif o["type"] == "flat":
+            disc = f"₹{o['discount_value']:.0f} off"
+        else:
+            disc = f"{o['type'].upper()} deal"
+        min_val = f" on orders above ₹{o['min_order_val']:.0f}" if o["min_order_val"] > 0 else ""
+        lines.append(f"  • {o['name']}: {disc}{min_val}")
+    return "\n".join(lines)
 
 
 def build_live_system_instruction(
@@ -81,6 +103,8 @@ def build_live_system_instruction(
     customer_name: str | None = None,
     awaiting_kitchen_confirm: bool = False,
     conversation_history: list[dict] | None = None,
+    combo_deals: list[dict] | None = None,
+    active_offers: list[dict] | None = None,
 ) -> str:
     """
     Build the full system instruction for a Gemini Live voice turn.
@@ -149,18 +173,30 @@ def build_live_system_instruction(
             f"  The customer's next reply answers this question. Handle it accordingly.\n"
         )
 
-    # ── Upsell section ──
+    # ── Upsell section (explicit suggestion + combo-based hint) ──
     upsell_section = ""
-    if upsell_suggestion:
+    combo_upsell_hint = _build_upsell_hint(combo_deals or [], [c["name"] for c in cart])
+    if upsell_suggestion or combo_upsell_hint:
+        hints = []
+        if upsell_suggestion:
+            hints.append(f"Suggest: \"{upsell_suggestion}\"")
+        if combo_upsell_hint:
+            hints.append(f"Combo opportunity: {combo_upsell_hint}")
         upsell_section = (
-            f"\nUPSELL OPPORTUNITY:\n"
-            f"  Suggest: \"{upsell_suggestion}\"\n"
-            f"  Work this naturally into your response after confirming the last action.\n"
+            "\nUPSELL OPPORTUNITY:\n"
+            + "\n".join(f"  {h}" for h in hints)
+            + "\n  Work this naturally into your response after confirming the last action.\n"
         )
 
-    # ── Combo section ──
-    combo_lines = [f"  • {c['description']}" for c in COMBO_DEALS]
-    combo_text = "\n".join(combo_lines)
+    # ── Combo section (from DB) ──
+    combo_text = _build_combo_text(combo_deals or [])
+
+    # ── Offers section (from DB) ──
+    offers_text = _build_offers_text(active_offers or [])
+    offers_section = (
+        f"\n━━ ACTIVE PROMOTIONS / OFFERS ━━\n{offers_text}\n"
+        "  Mention the most relevant offer naturally when it applies to the customer's order.\n"
+    ) if offers_text else ""
 
     # ── Table section ──
     table_label = f"Table {table_id}" if table_id else "Walk-in / phone order"
@@ -277,6 +313,7 @@ def build_live_system_instruction(
         "━━ AVAILABLE COMBO DEALS ━━\n"
         f"{combo_text}\n\n"
 
+        f"{offers_section}"
         f"━━ CUSTOMER ━━\nName: {name_label}\n\n"
         f"━━ TABLE ━━\n{table_label}\n\n"
         f"━━ MENU ━━\n{menu_text}\n\n"

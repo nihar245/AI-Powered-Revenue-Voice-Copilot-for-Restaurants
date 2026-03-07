@@ -38,7 +38,7 @@ export default function KitchenDisplay() {
 
   useEffect(() => {
     fetchKots()
-    const interval = setInterval(fetchKots, 15000)
+    const interval = setInterval(fetchKots, 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -73,7 +73,7 @@ export default function KitchenDisplay() {
             <ChefHat size={24} className="text-primary-600" />
             Kitchen Display
           </h1>
-          <p className="text-surface-400 text-sm mt-0.5">Live KOT queue — auto-refreshes every 15s</p>
+          <p className="text-surface-400 text-sm mt-0.5">Live KOT queue — auto-refreshes every 5s</p>
         </div>
         <div className="flex gap-3">
           <div className="card px-4 py-2 flex items-center gap-2">

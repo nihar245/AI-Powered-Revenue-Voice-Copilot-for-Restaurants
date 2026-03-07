@@ -14,6 +14,7 @@ import {
   UtensilsCrossed,
   FileText,
   Phone,
+  Package,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -28,6 +29,7 @@ const navItems = [
   { label: 'Kitchen Display', icon: ChefHat,         path: '/dashboard/kitchen' },
   { label: 'Voice Ordering',  icon: Mic,             path: '/dashboard/voice' },
   { label: 'Call Logs',       icon: Phone,           path: '/dashboard/call-logs' },
+  { label: 'Inventory',       icon: Package,         path: '/dashboard/inventory' },
 ]
 
 export default function Navbar() {

@@ -143,17 +143,51 @@ export default function CallLogs() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
 
+  // ── stats must be defined BEFORE useEffect (which reads stats.active) ──
+  const stats = {
+    total:    logs.length,
+    active:   logs.filter(l => l.status === 'in_progress').length,
+    orders:   logs.filter(l => l.status === 'order_confirmed').length,
+    revenue:  logs.reduce((s, l) => s + (l.order_total || 0), 0),
+  }
+
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`${API_URL}/voice/call-logs?limit=100`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error(`Server ${res.status}`)
-      const data = await res.json()
-      setLogs(Array.isArray(data) ? data : [])
+      const token   = localStorage.getItem('token')
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+      // Fetch live in-memory call logs (Python service) + persistent DB voice orders in parallel
+      const [liveRes, histRes] = await Promise.allSettled([
+        fetch(`${API_URL}/voice/call-logs?limit=100`,    { headers }),
+        fetch(`${API_URL}/voice/phone-orders?limit=100`, { headers }),
+      ])
+
+      const live = (liveRes.status === 'fulfilled' && liveRes.value.ok)
+        ? await liveRes.value.json() : []
+      const hist = (histRes.status === 'fulfilled' && histRes.value.ok)
+        ? await histRes.value.json() : []
+
+      // Merge: live entries (with transcripts) take priority.
+      // Add DB entries that are older than the oldest live entry so we don't duplicate
+      // confirmed calls that are both in Python memory and the DB.
+      const merged = Array.isArray(live) ? [...live] : []
+      const oldestLiveTime = merged.length > 0
+        ? Math.min(...merged.map(l => new Date(l.start_time || 0).getTime()))
+        : Infinity
+
+      if (Array.isArray(hist)) {
+        for (const h of hist) {
+          if (new Date(h.start_time || 0).getTime() < oldestLiveTime) {
+            merged.push(h)
+          }
+        }
+      }
+
+      // Newest first
+      merged.sort((a, b) => new Date(b.start_time || 0) - new Date(a.start_time || 0))
+      setLogs(merged)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -163,18 +197,11 @@ export default function CallLogs() {
 
   useEffect(() => {
     fetchLogs()
-    // Poll at 5 s when a call is in progress, 15 s otherwise
+    // Poll faster when a live call is in progress
     const intervalMs = stats.active > 0 ? 5_000 : 15_000
     const id = setInterval(fetchLogs, intervalMs)
     return () => clearInterval(id)
   }, [fetchLogs, stats.active])
-
-  const stats = {
-    total:    logs.length,
-    active:   logs.filter(l => l.status === 'in_progress').length,
-    orders:   logs.filter(l => l.status === 'order_confirmed').length,
-    revenue:  logs.reduce((s, l) => s + (l.order_total || 0), 0),
-  }
 
   return (
     <div className="p-6 animate-fade-in">

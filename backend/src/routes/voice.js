@@ -29,6 +29,9 @@ router.get('/menu', vc.getMenu);
 // Phone call logs — proxies to ai_service_gemini GET /twilio/call-logs
 router.get('/call-logs', vc.getCallLogs);
 
+// Persistent DB voice/phone order history (survives service restarts)
+router.get('/phone-orders', vc.getPhoneOrders);
+
 // Active phone call state — proxies to ai_service_gemini GET /twilio/active-call
 router.get('/active-call', vc.getActiveCall);
 

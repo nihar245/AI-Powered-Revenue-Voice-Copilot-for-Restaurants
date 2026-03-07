@@ -90,7 +90,6 @@ export default function Revenue() {
     { id: 'price', label: 'Price Recommendations', icon: Tag },
     { id: 'aov', label: 'AOV Intelligence', icon: CreditCard },
     { id: 'anomalies', label: `Anomalies (${anomalyCount})`, icon: AlertTriangle },
-    { id: 'forecast', label: 'Demand Forecast', icon: Activity },
     { id: 'upsell', label: `Upsell (${upsellItems.length})`, icon: ShoppingCart },
   ]
 
@@ -405,93 +404,6 @@ export default function Revenue() {
               </table>
             )}
           </div>
-        </div>
-      )}
-
-      {/* ── Tab: Demand Forecast ── */}
-      {tab === 'forecast' && (
-        <div className="space-y-6">
-          <div className="card p-4 bg-primary-50 border border-primary-200">
-            <div className="flex items-start gap-3">
-              <Activity size={16} className="text-primary-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-primary-800 font-semibold text-sm">Demand Forecast</p>
-                <p className="text-primary-600 text-xs mt-0.5">
-                  {demandForecast?.source === 'unavailable'
-                    ? 'ML service not running — start FastAPI on port 8000 and run the LightGBM demand_forecast notebook.'
-                    : `${demandForecast?.model || 'LightGBM'} model · ${forecastData.length}-day horizon`}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {forecastData.length === 0 ? (
-            <div className="card p-12 text-center">
-              <Activity size={32} className="text-surface-300 mx-auto mb-3" />
-              <p className="text-surface-500 font-semibold">Forecast Unavailable</p>
-              <p className="text-surface-400 text-sm mt-1">Run the demand_forecast notebook and start the ML service to see predictions.</p>
-            </div>
-          ) : (
-            <>
-              {/* Order forecast chart */}
-              <div className="card p-6">
-                <h2 className="font-semibold text-surface-900 mb-1">Predicted Daily Orders</h2>
-                <p className="text-surface-400 text-xs mb-5">Next {forecastData.length} days</p>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={forecastData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={v => v?.slice(5)} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <Tooltip formatter={(v) => [v, 'Predicted Orders']} />
-                    <Line type="monotone" dataKey="predicted_orders" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Revenue forecast chart */}
-              <div className="card p-6">
-                <h2 className="font-semibold text-surface-900 mb-1">Predicted Daily Revenue</h2>
-                <p className="text-surface-400 text-xs mb-5">Next {forecastData.length} days</p>
-                <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={forecastData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={v => v?.slice(5)} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v) => [`₹${Number(v).toLocaleString()}`, 'Predicted Revenue']} />
-                    <Area type="monotone" dataKey="predicted_revenue" stroke="#10b981" fill="#10b981" fillOpacity={0.15} strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Forecast table */}
-              <div className="card p-6 overflow-x-auto">
-                <h2 className="font-semibold text-surface-900 mb-4">Forecast Details</h2>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-surface-200">
-                      {['Date', 'Day', 'Predicted Orders', 'Predicted Revenue'].map(h => (
-                        <th key={h} className="text-left text-xs text-surface-400 font-semibold uppercase tracking-wider pb-2 pr-4">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-100">
-                    {forecastData.map((row, i) => {
-                      const d = new Date(row.date)
-                      const dayName = d.toLocaleDateString('en-IN', { weekday: 'short' })
-                      return (
-                        <tr key={i} className="hover:bg-surface-50 transition-colors">
-                          <td className="py-2.5 pr-4 text-surface-900 font-medium text-xs">{row.date}</td>
-                          <td className="py-2.5 pr-4 text-surface-500 text-xs">{dayName}</td>
-                          <td className="py-2.5 pr-4 text-primary-600 font-bold text-xs">{row.predicted_orders}</td>
-                          <td className="py-2.5 pr-4 text-emerald-600 font-semibold text-xs">₹{Number(row.predicted_revenue).toLocaleString()}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
         </div>
       )}
 

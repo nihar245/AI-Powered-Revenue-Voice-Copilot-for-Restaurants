@@ -411,22 +411,18 @@ async def voice_chat(
 
         elif a_intent == Intent.CONFIRM_ORDER:
             if cart:
+                # Do NOT write to DB or clear the cart here.
+                # The frontend will detect intent=confirm_order and auto-trigger
+                # the Node.js POST /api/voice/confirm-order endpoint, which
+                # reliably writes order + KOT to the DB and then clears the
+                # session via POST /test/clear-session.
+                # This avoids: (1) demo-mode silent failures when pool is None,
+                #              (2) double-order writes,
+                #              (3) cart-already-empty race on the Node path.
                 subtotal, tax_total, grand_total = get_cart_total(cart)
-                try:
-                    order_number = await _write_order_to_db(
-                        session_data=session,
-                        table_id=table_id,
-                        cart=cart,
-                        subtotal=subtotal,
-                        tax_total=tax_total,
-                        grand_total=grand_total,
-                        cart_events=cart_events,
-                    )
-                except Exception as exc:
-                    logger.error("Order write failed: %s", exc)
-                    order_number = f"VO-{uuid.uuid4().hex[:6].upper()}"
-                    cart_events.append(f"✅ Order #{order_number} confirmed — ₹{grand_total:.0f} (DB error)")
-                cart = []
+                cart_events.append(f"🔄 Confirming order — ₹{grand_total:.0f}")
+                logger.info("[voice-chat] CONFIRM_ORDER detected — deferring DB write to Node.js  session=%s  total=%.0f",
+                            session_id[:8], grand_total)
                 new_pending_upsell = None
                 new_clarification  = None
 
@@ -850,6 +846,24 @@ async def _write_order_to_db(
         cart_events.append(f"❌ Order insert failed: {exc}")
         raise
     return order_num
+
+
+# ─── /test/clear-session (called by Node.js after writing order to its own DB) ─
+
+@router.post("/clear-session")
+async def clear_session_cart(session_id: str = Form(...)):
+    """
+    Clears the cart in the Python session store after Node.js has confirmed the order
+    and written it directly to the database. Safe to call multiple times.
+    """
+    logger.info("[clear-session] called  session_id=%s", session_id)
+    session = get_session(session_id)
+    if not session:
+        logger.warning("[clear-session] session not found (already expired?)  session_id=%s", session_id)
+        return {"ok": True, "cleared": False}
+    update_session(session_id, {"cart": [], "last_intent": "confirm_order"})
+    logger.info("[clear-session] cart cleared  session_id=%s", session_id)
+    return {"ok": True, "cleared": True}
 
 
 # ─── /test/confirm-order (button-triggered from Node.js backend) ─────────────

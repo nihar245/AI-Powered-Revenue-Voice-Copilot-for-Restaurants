@@ -30,7 +30,9 @@ from models.schemas import (
 )
 from services.audio.live import voice_turn
 from services.database.queries import (
+    fetch_active_combos,
     fetch_active_menu,
+    fetch_active_offers,
     generate_order_number,
     insert_order,
 )
@@ -41,10 +43,14 @@ from services.prompts import build_live_system_instruction
 
 router = APIRouter()
 
-# ─── Menu cache ───────────────────────────────────────────────────────────────
+# ─── Menu cache ─────────────────────────────────────────────────────
+COMBO_TTL = 120.0  # combos/offers change less often than the menu
 _menu_cache:    list[dict] = []
 _menu_cache_ts: float     = 0.0
 _MENU_TTL = 60.0
+_combo_cache:   list[dict] = []
+_offer_cache:   list[dict] = []
+_combo_cache_ts: float    = 0.0
 
 
 async def _get_menu() -> list[dict]:
@@ -54,6 +60,16 @@ async def _get_menu() -> list[dict]:
     _menu_cache    = await fetch_active_menu()
     _menu_cache_ts = time.monotonic()
     return _menu_cache
+
+
+async def _get_combos_and_offers() -> tuple[list[dict], list[dict]]:
+    global _combo_cache, _offer_cache, _combo_cache_ts
+    if _combo_cache and (time.monotonic() - _combo_cache_ts) < COMBO_TTL:
+        return _combo_cache, _offer_cache
+    _combo_cache    = await fetch_active_combos()
+    _offer_cache    = await fetch_active_offers()
+    _combo_cache_ts = time.monotonic()
+    return _combo_cache, _offer_cache
 
 
 # ─── /voice/order ─────────────────────────────────────────────────────────────
@@ -74,10 +90,15 @@ async def voice_order(
         raise HTTPException(status_code=400, detail="Empty audio file")
 
     menu_items = await _get_menu()
+    combo_deals, active_offers = await _get_combos_and_offers()
     cart: list[dict] = list(session["cart"])
 
     # ── 2. Gemini Live voice turn (STT + reasoning + TTS in one session) ──────
-    system_instr = build_live_system_instruction(menu_items, cart)
+    system_instr = build_live_system_instruction(
+        menu_items, cart,
+        combo_deals=combo_deals,
+        active_offers=active_offers,
+    )
     turn = await voice_turn(audio_bytes, system_instr)
 
     transcript    = turn["transcript"]

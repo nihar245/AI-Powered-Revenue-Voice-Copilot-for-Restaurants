@@ -127,6 +127,7 @@ export default function Orders() {
   // Menu search / category filter inside modal
   const [menuSearch, setMenuSearch] = useState('');
   const [menuCategory, setMenuCategory] = useState('All');
+  const [comboPage, setComboPage] = useState(0);
 
   const handleAddToCart = (opt = menuOptions[selectedMenuIdx], qty = selectedQuantity, isUpsell = false, triggerName = null) => {
     if (qty < 1 || !opt) return;
@@ -204,6 +205,7 @@ export default function Orders() {
     setPaymentLoading(false);
     setMenuSearch('');
     setMenuCategory('All');
+    setComboPage(0);
   };
 
   const handleCreateOrder = async () => {
@@ -579,7 +581,7 @@ export default function Orders() {
               <button onClick={() => { resetModal(); }} className="text-zinc-400 hover:text-zinc-600 transition-colors p-1"><X size={20} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col lg:flex-row gap-6">
               {/* Form Section */}
               <div className="flex-1 space-y-5">
 
@@ -713,45 +715,65 @@ export default function Orders() {
                     ))}
                   </div>
 
-                  {/* Recommended Combos strip */}
-                  {combosForModal.length > 0 && (
-                    <div className="mb-3">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <Flame size={11} className="text-orange-500" />
-                        <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">Recommended Combos</span>
-                        <span className="text-[9px] text-orange-400">· frequently ordered together</span>
-                      </div>
-                      <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
-                        {combosForModal.map(combo => (
-                          <div key={combo.combo_id} className="shrink-0 w-40 rounded-xl border border-orange-200 bg-gradient-to-b from-orange-50 to-white p-2.5 flex flex-col gap-1.5">
-                            <div className="flex items-start justify-between gap-1">
-                              <p className="text-[10px] font-semibold text-surface-800 line-clamp-2 flex-1">{combo.combo_label || combo.combo_name}</p>
-                              <span className="text-[8px] font-bold bg-orange-100 text-orange-700 px-1 py-0.5 rounded shrink-0">
-                                {combo.combo_size === 2 ? 'Pair' : `${combo.combo_size}×`}
-                              </span>
+                  {/* Recommended Combos — paginated 3 at a time */}
+                  {combosForModal.length > 0 && (() => {
+                    const PAGE_SIZE = 3;
+                    const totalPages = Math.ceil(combosForModal.length / PAGE_SIZE);
+                    const pageItems = combosForModal.slice(comboPage * PAGE_SIZE, comboPage * PAGE_SIZE + PAGE_SIZE);
+                    return (
+                      <div className="mb-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Flame size={11} className="text-orange-500" />
+                          <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wide">Recommended Combos</span>
+                          <span className="text-[9px] text-orange-400">· frequently ordered together</span>
+                          {totalPages > 1 && (
+                            <div className="ml-auto flex items-center gap-1">
+                              <button
+                                onClick={() => setComboPage(p => Math.max(0, p - 1))}
+                                disabled={comboPage === 0}
+                                className="w-5 h-5 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                              >‹</button>
+                              <span className="text-[9px] text-orange-500 font-medium">{comboPage + 1}/{totalPages}</span>
+                              <button
+                                onClick={() => setComboPage(p => Math.min(totalPages - 1, p + 1))}
+                                disabled={comboPage === totalPages - 1}
+                                className="w-5 h-5 flex items-center justify-center rounded border border-orange-200 text-orange-500 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-xs font-bold"
+                              >›</button>
                             </div>
-                            <div className="flex flex-wrap gap-0.5">
-                              {(combo.items || []).map(item => (
-                                <span key={item.item_id} className="text-[8px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-                                  {item.qty > 1 ? `${item.qty}× ` : ''}{item.name}
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {pageItems.map(combo => (
+                            <div key={combo.combo_id} className="rounded-xl border border-orange-200 bg-gradient-to-b from-orange-50 to-white p-2.5 flex flex-col gap-1.5">
+                              <div className="flex items-start justify-between gap-1">
+                                <p className="text-[10px] font-semibold text-surface-800 line-clamp-2 flex-1">{combo.combo_label || combo.combo_name}</p>
+                                <span className="text-[8px] font-bold bg-orange-100 text-orange-700 px-1 py-0.5 rounded shrink-0">
+                                  {combo.combo_size === 2 ? 'Pair' : `${combo.combo_size}×`}
                                 </span>
-                              ))}
+                              </div>
+                              <div className="flex flex-wrap gap-0.5">
+                                {(combo.items || []).map(item => (
+                                  <span key={item.item_id} className="text-[8px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                                    {item.qty > 1 ? `${item.qty}× ` : ''}{item.name}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="flex items-center justify-between mt-auto">
+                                <span className="text-xs font-bold text-orange-600">₹{combo.combo_price}</span>
+                                {combo.saving > 0 && <span className="text-[8px] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded">-{combo.saving_pct}%</span>}
+                              </div>
+                              <button
+                                onClick={() => handleAddCombo(combo)}
+                                className="w-full flex items-center justify-center gap-1 text-[9px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-lg py-1.5 transition-all"
+                              >
+                                <ShoppingBag size={9} /> Add Combo
+                              </button>
                             </div>
-                            <div className="flex items-center justify-between mt-auto">
-                              <span className="text-xs font-bold text-orange-600">₹{combo.combo_price}</span>
-                              {combo.saving > 0 && <span className="text-[8px] text-emerald-600 font-semibold bg-emerald-50 px-1 rounded">-{combo.saving_pct}%</span>}
-                            </div>
-                            <button
-                              onClick={() => handleAddCombo(combo)}
-                              className="w-full flex items-center justify-center gap-1 text-[9px] font-bold text-white bg-orange-500 hover:bg-orange-600 active:scale-95 rounded-lg py-1.5 transition-all"
-                            >
-                              <ShoppingBag size={9} /> Add Combo
-                            </button>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Menu Items Grid */}
                   <div className="h-56 overflow-y-auto custom-scrollbar rounded-lg">
@@ -825,10 +847,10 @@ export default function Orders() {
               </div>
 
               {/* Cart Section */}
-              <div className="w-full md:w-72 bg-surface-50 rounded-xl p-4 border border-surface-200 flex flex-col h-[420px] shrink-0">
+              <div className="w-full lg:w-72 bg-surface-50 rounded-xl p-4 border border-surface-200 flex flex-col lg:h-[420px] lg:shrink-0">
                 <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest border-b border-surface-200 pb-2 mb-3">Cart ({cartItems.length})</h3>
 
-                <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
+                <div className="max-h-52 lg:flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
                   {cartItems.length === 0 ? (
                     <div className="text-center text-zinc-400 text-xs py-8">Cart is empty</div>
                   ) : (

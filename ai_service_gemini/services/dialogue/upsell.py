@@ -3,17 +3,11 @@ Upsell & Combo Recommendation Engine
 
 Rule-based engine — no ML required.
 
-When DB is connected, this will additionally query:
-  - Popular pairings from order_items history (co-occurrence)
-  - Active promotional bundles from a promotions table
-  - Revenue-weighted recommendations from a sales_summary view
-
-For now it uses static rules from prompts.UPSELL_MAP and prompts.COMBO_DEALS.
+Uses DB-driven combo deals (from fetch_active_combos) passed at call time.
+Falls back gracefully to an empty list if no combos are available.
 """
 
 from __future__ import annotations
-
-from services.prompts import COMBO_DEALS, UPSELL_MAP
 
 
 # ─── Upsell suggestion ────────────────────────────────────────────────────────
@@ -22,26 +16,29 @@ def get_upsell_suggestion(
     cart: list[dict],
     already_shown: list[str],
     menu_items: list[dict],
+    combo_deals: list[dict] | None = None,
 ) -> str | None:
     """
     Return a upsell suggestion string, or None if nothing new to suggest.
 
     Priority:
     1. Combo deal that is partially satisfied and not yet suggested
-    2. Single-item pairing from UPSELL_MAP
+    2. Single-item pairing derived from combo membership
 
     Parameters
     ----------
     cart          : current cart (list of cart item dicts)
     already_shown : list of suggestion strings already shown this session
     menu_items    : active menu (to confirm the upsell target exists)
+    combo_deals   : active combos from DB (fetch_active_combos output)
     """
     cart_names = {c["name"].lower() for c in cart}
     menu_names = {m["name"].lower(): m["name"] for m in menu_items}
+    deals = combo_deals or []
 
-    # 1. Check combos first (higher value)
-    for combo in COMBO_DEALS:
-        items_lower = [i.lower() for i in combo["items"]]
+    # 1. Check combos first (higher value) — DB-driven
+    for combo in deals:
+        items_lower = [it["item_name"].lower() for it in combo.get("items", [])]
         present   = [i for i in items_lower if i in cart_names]
         missing   = [i for i in items_lower if i not in cart_names]
         if present and missing:
@@ -49,55 +46,59 @@ def get_upsell_suggestion(
             for m in missing:
                 canonical = menu_names.get(m)
                 if canonical:
+                    price_hint = f" (combo price: ₹{combo['selling_price']:.0f})" if combo.get("selling_price") else ""
                     suggestion = (
-                        f"Add {canonical} to complete the '{combo['name']}' "
-                        f"and save ₹{combo['saving']}!"
+                        f"Add {canonical} to complete the '{combo['name']}'"
+                        f"{price_hint}!"
                     )
                     if suggestion not in already_shown:
                         return suggestion
 
-    # 2. Single-item pairings
-    for trigger, suggestion_name in UPSELL_MAP:
-        if trigger.lower() in cart_names:
-            canonical = menu_names.get(suggestion_name.lower())
-            if canonical and canonical.lower() not in cart_names:
-                suggestion = f"Would you like to add {canonical}? It pairs great with {trigger}!"
-                if suggestion not in already_shown:
-                    return suggestion
+    # 2. Single-item pairings derived from combo membership
+    for combo in deals:
+        combo_items = [it["item_name"] for it in combo.get("items", [])]
+        for trigger in combo_items:
+            if trigger.lower() in cart_names:
+                for partner in combo_items:
+                    if partner == trigger:
+                        continue
+                    canonical = menu_names.get(partner.lower())
+                    if canonical and canonical.lower() not in cart_names:
+                        suggestion = f"Would you like to add {canonical}? It pairs great with {trigger}!"
+                        if suggestion not in already_shown:
+                            return suggestion
 
     return None
 
 
 # ─── Combo detection ──────────────────────────────────────────────────────────
 
-def detect_active_combos(cart: list[dict]) -> list[dict]:
+def detect_active_combos(cart: list[dict], combo_deals: list[dict] | None = None) -> list[dict]:
     """
     Return list of combos fully satisfied by the current cart.
     Used to display savings badge in the UI.
     """
     cart_names = {c["name"].lower() for c in cart}
     active = []
-    for combo in COMBO_DEALS:
-        if all(i.lower() in cart_names for i in combo["items"]):
+    for combo in (combo_deals or []):
+        combo_item_names = [it["item_name"].lower() for it in combo.get("items", [])]
+        if combo_item_names and all(i in cart_names for i in combo_item_names):
             active.append({
                 "name":        combo["name"],
-                "saving":      combo["saving"],
-                "description": combo["description"],
+                "description": combo.get("description") or combo["name"],
+                "selling_price": combo.get("selling_price", 0),
             })
     return active
 
 
 # ─── Order summary ────────────────────────────────────────────────────────────
 
-def build_order_summary(cart: list[dict], subtotal: float, tax: float, total: float) -> dict:
+def build_order_summary(cart: list[dict], subtotal: float, tax: float, total: float, combo_deals: list[dict] | None = None) -> dict:
     """
     Build a structured order summary JSON — the final artefact before DB write.
-
-    This is the canonical representation of a confirmed order. When the backend
-    is integrated, this dict is what gets sent to the PoS / KOT pipeline.
     """
-    combos = detect_active_combos(cart)
-    combo_saving = sum(c["saving"] for c in combos)
+    combos = detect_active_combos(cart, combo_deals)
+    combo_saving = sum(c.get("selling_price", 0) for c in combos)
 
     line_items = []
     for c in cart:
