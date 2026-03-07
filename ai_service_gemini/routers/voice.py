@@ -33,6 +33,7 @@ from services.database.queries import (
     fetch_active_combos,
     fetch_active_menu,
     fetch_active_offers,
+    fetch_upsell_rules,
     generate_order_number,
     insert_order,
 )
@@ -51,6 +52,8 @@ _MENU_TTL = 60.0
 _combo_cache:   list[dict] = []
 _offer_cache:   list[dict] = []
 _combo_cache_ts: float    = 0.0
+_upsell_rules_cache:   list[dict] = []
+_upsell_rules_cache_ts: float     = 0.0
 
 
 async def _get_menu() -> list[dict]:
@@ -72,6 +75,15 @@ async def _get_combos_and_offers() -> tuple[list[dict], list[dict]]:
     return _combo_cache, _offer_cache
 
 
+async def _get_upsell_rules() -> list[dict]:
+    global _upsell_rules_cache, _upsell_rules_cache_ts
+    if _upsell_rules_cache and (time.monotonic() - _upsell_rules_cache_ts) < COMBO_TTL:
+        return _upsell_rules_cache
+    _upsell_rules_cache    = await fetch_upsell_rules()
+    _upsell_rules_cache_ts = time.monotonic()
+    return _upsell_rules_cache
+
+
 # ─── /voice/order ─────────────────────────────────────────────────────────────
 
 @router.post("/order", response_model=VoiceOrderResponse)
@@ -91,13 +103,15 @@ async def voice_order(
 
     menu_items = await _get_menu()
     combo_deals, active_offers = await _get_combos_and_offers()
+    upsell_rules = await _get_upsell_rules()
     cart: list[dict] = list(session["cart"])
 
-    # ── 2. Gemini Live voice turn (STT + reasoning + TTS in one session) ──────
+    # ── 2. Gemini Live voice turn (STT + reasoning + TTS in one session) ────
     system_instr = build_live_system_instruction(
         menu_items, cart,
         combo_deals=combo_deals,
         active_offers=active_offers,
+        upsell_rules=upsell_rules,
     )
     turn = await voice_turn(audio_bytes, system_instr)
 

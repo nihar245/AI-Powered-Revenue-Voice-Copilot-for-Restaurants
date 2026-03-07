@@ -93,6 +93,40 @@ def _build_offers_text(active_offers: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def _build_upsell_rules_text(upsell_rules: list[dict], cart_names: list[str]) -> str:
+    """
+    Build a context-aware upsell hint section for Aria.
+
+    Only shows rules whose trigger_item is present in the cart — so Aria
+    gets a targeted, short list rather than all 35+ rules.
+    Falls back to showing the top-5 highest-weight rules when the cart is empty.
+    """
+    if not upsell_rules:
+        return ""
+
+    cart_lower = {n.lower() for n in cart_names}
+    rules_sorted = sorted(upsell_rules, key=lambda r: -r.get("weight", 5))
+
+    if cart_lower:
+        # Only rules that are triggered by items already in the cart
+        relevant = [
+            r for r in rules_sorted
+            if r["trigger_item"].lower() in cart_lower
+        ][:6]  # cap at 6 so prompt stays compact
+    else:
+        # Cart empty — show general top-5 to prime Aria's awareness
+        relevant = rules_sorted[:5]
+
+    if not relevant:
+        return ""
+
+    lines = [
+        f"  • If customer has {r['trigger_item']} → suggest {r['suggest_item']}: {r['reason']}"
+        for r in relevant
+    ]
+    return "\n".join(lines)
+
+
 def build_live_system_instruction(
     menu_items: list[dict],
     cart: list[dict],
@@ -105,6 +139,7 @@ def build_live_system_instruction(
     conversation_history: list[dict] | None = None,
     combo_deals: list[dict] | None = None,
     active_offers: list[dict] | None = None,
+    upsell_rules: list[dict] | None = None,
 ) -> str:
     """
     Build the full system instruction for a Gemini Live voice turn.
@@ -173,19 +208,21 @@ def build_live_system_instruction(
             f"  The customer's next reply answers this question. Handle it accordingly.\n"
         )
 
-    # ── Upsell section (explicit suggestion + combo-based hint) ──
+    # ── Upsell section (explicit suggestion + combo-based hint + rule hints) ──
     upsell_section = ""
-    combo_upsell_hint = _build_upsell_hint(combo_deals or [], [c["name"] for c in cart])
-    if upsell_suggestion or combo_upsell_hint:
+    combo_upsell_hint  = _build_upsell_hint(combo_deals or [], [c["name"] for c in cart])
+    rules_hint         = _build_upsell_rules_text(upsell_rules or [], [c["name"] for c in cart])
+    if upsell_suggestion or combo_upsell_hint or rules_hint:
         hints = []
         if upsell_suggestion:
-            hints.append(f"Suggest: \"{upsell_suggestion}\"")
+            hints.append(f"Top suggestion: \"{upsell_suggestion}\"")
         if combo_upsell_hint:
             hints.append(f"Combo opportunity: {combo_upsell_hint}")
         upsell_section = (
             "\nUPSELL OPPORTUNITY:\n"
             + "\n".join(f"  {h}" for h in hints)
-            + "\n  Work this naturally into your response after confirming the last action.\n"
+            + (f"\n\n  Smart pairings for this order:\n{rules_hint}" if rules_hint else "")
+            + "\n  Work the top suggestion naturally into your reply after confirming the last action.\n"
         )
 
     # ── Combo section (from DB) ──

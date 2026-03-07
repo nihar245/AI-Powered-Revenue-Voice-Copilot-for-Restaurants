@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS inventory_log CASCADE;
 DROP TABLE IF EXISTS recipes CASCADE;
 DROP TABLE IF EXISTS ingredients CASCADE;
 DROP TABLE IF EXISTS customers CASCADE;
+DROP TABLE IF EXISTS upsell_rules CASCADE;
 DROP TABLE IF EXISTS combo_items CASCADE;
 DROP TABLE IF EXISTS menu_combos CASCADE;
 DROP TABLE IF EXISTS offers CASCADE;
@@ -184,6 +185,21 @@ CREATE TABLE offers (
     used_count          INT DEFAULT 0,
     is_active           BOOLEAN DEFAULT TRUE
 );
+
+-- ============================================================
+-- LEVEL 5.5: UPSELL RULES
+-- ============================================================
+CREATE TABLE upsell_rules (
+    rule_id         SERIAL PRIMARY KEY,
+    trigger_item    VARCHAR(100) NOT NULL,  -- exact menu item name that triggers suggestion
+    suggest_item    VARCHAR(100) NOT NULL,  -- exact menu item name to suggest
+    reason          TEXT NOT NULL,          -- voice-friendly reason (used directly in AI prompt)
+    weight          SMALLINT DEFAULT 5      -- 1 (low) to 10 (high) — higher = suggest first
+                    CHECK (weight BETWEEN 1 AND 10),
+    is_active       BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_upsell_rules_trigger ON upsell_rules (LOWER(trigger_item)) WHERE is_active = TRUE;
 
 -- ============================================================
 -- LEVEL 6: ORDERS

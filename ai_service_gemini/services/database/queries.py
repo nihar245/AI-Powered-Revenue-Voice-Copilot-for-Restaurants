@@ -231,6 +231,44 @@ async def fetch_active_offers() -> list[dict]:
     ]
 
 
+# ─── READ — Upsell Rules ─────────────────────────────────────────────────────
+
+async def fetch_upsell_rules() -> list[dict]:
+    """
+    Returns active upsell rules ordered by weight DESC (highest priority first).
+
+    Shape per rule:
+      trigger_item : str   — menu item name that triggers the suggestion
+      suggest_item : str   — menu item name to suggest
+      reason       : str   — voice-friendly reason sentence for the AI prompt
+      weight       : int   — 1–10, higher surfaced first
+    """
+    pool = get_pool()
+    if pool is None:
+        return []
+
+    try:
+        rows = await pool.fetch("""
+            SELECT trigger_item, suggest_item, reason, weight
+            FROM upsell_rules
+            WHERE is_active = TRUE
+            ORDER BY weight DESC, rule_id
+        """)
+    except Exception as exc:
+        _ERR("fetch_upsell_rules failed: %s", exc)
+        return []
+
+    return [
+        {
+            "trigger_item": r["trigger_item"],
+            "suggest_item": r["suggest_item"],
+            "reason":       r["reason"],
+            "weight":       r["weight"],
+        }
+        for r in rows
+    ]
+
+
 # ─── WRITE — Orders ──────────────────────────────────────────────────────────
 
 async def generate_order_number() -> str:

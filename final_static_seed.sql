@@ -131,14 +131,25 @@ SELECT 'menu_addons done', COUNT(*) FROM menu_addons;
 
 
 INSERT INTO menu_combos (combo_name, description, selling_price, food_cost, valid_from, valid_to, is_active) VALUES
-('Butter Chicken Meal',    'Butter Chicken Full + 2 Butter Naan + Sweet Lassi',            480, 165, '2024-01-01', '2024-12-31', TRUE),
-('Biryani Special',        'Chicken Biryani Full + Raita + Sweet Lassi Small',              450, 160, '2024-01-01', '2024-12-31', TRUE),
-('Veg Delight',            'Dal Makhani Full + Shahi Paneer Half + 2 Butter Naan + Raita', 520, 165, '2024-01-01', '2024-12-31', TRUE),
-('Kebab Platter',          'Paneer Tikka Half + Seekh Kebab Half + Mint Chutney',           420, 140, '2024-01-01', '2024-12-31', TRUE),
-('Lunch Thali',            'Dal Makhani Half + Any Main Half + 2 Roti + Rice + Raita',     350, 110, '2024-01-01', '2024-12-31', TRUE),
-('Mutton Feast',           'Mutton Rogan Josh Full + Mutton Biryani Half + Raita',          680, 270, '2024-01-01', '2024-12-31', TRUE),
-('Happy Hour Snack',       'Paneer Tikka Half + 2 Masala Chai',                             220, 67,  '2024-01-01', '2024-12-31', TRUE),
-('Sweet Ending',           'Gulab Jamun 2pcs + Kheer Small + Masala Chai',                 150, 40,  '2024-01-01', '2024-12-31', TRUE);
+-- ── Existing combos (updated to 2026) ─────────────────────────────────────────
+('Butter Chicken Meal',   'Butter Chicken Full + 2 Butter Naan + Sweet Lassi — crowd favourite',           480, 165, '2026-01-01', '2026-12-31', TRUE),
+('Biryani Special',       'Chicken Biryani Full + Raita + Sweet Lassi Small — complete biryani meal',      450, 160, '2026-01-01', '2026-12-31', TRUE),
+('Veg Delight',           'Dal Makhani Full + Shahi Paneer Half + 2 Butter Naan + Raita',                  520, 165, '2026-01-01', '2026-12-31', TRUE),
+('Kebab Platter',         'Paneer Tikka Half + Seekh Kebab Half — mixed grill starter',                    420, 140, '2026-01-01', '2026-12-31', TRUE),
+('Lunch Thali',           'Dal Makhani Half + 2 Tandoori Roti + Jeera Rice + Raita — value lunch',         350, 110, '2026-01-01', '2026-12-31', TRUE),
+('Mutton Feast',          'Mutton Rogan Josh Full + Mutton Biryani Half + Raita — for the meat lover',     680, 270, '2026-01-01', '2026-12-31', TRUE),
+('Happy Hour Snack',      'Paneer Tikka Half + 2 Masala Chai — perfect tea-time combo',                    220,  67, '2026-01-01', '2026-12-31', TRUE),
+('Sweet Ending',          'Gulab Jamun 2pcs + Kheer Small + Masala Chai — dessert finale',                 150,  40, '2026-01-01', '2026-12-31', TRUE),
+-- ── New combos ────────────────────────────────────────────────────────────────
+('Veg Biryani Combo',     'Veg Biryani Full + Raita + Mango Lassi Small — complete vegetarian biryani',   399, 115, '2026-01-01', '2026-12-31', TRUE),
+('Mutton Biryani Combo',  'Mutton Biryani Full + Raita + Sweet Lassi Small — the ultimate biryani thali', 549, 213, '2026-01-01', '2026-12-31', TRUE),
+('Royal Veg Dinner',      'Shahi Paneer Full + 2 Garlic Naan + Mango Lassi Small + Gulab Jamun 2pcs',     579, 156, '2026-01-01', '2026-12-31', TRUE),
+('Chicken Kadai Combo',   'Chicken Kadai Full + 2 Paratha + Fresh Lime Soda — bold spicy meal',           459, 138, '2026-01-01', '2026-12-31', TRUE),
+('Tandoori Night',        'Seekh Kebab Full + Paneer Tikka Half + 2 Garlic Naan + Mango Lassi Small',     799, 232, '2026-01-01', '2026-12-31', TRUE),
+('Rajma Chawal',          'Rajma Masala Full + Jeera Rice + Raita — classic North Indian comfort meal',   379,  93, '2026-01-01', '2026-12-31', TRUE),
+('Sweet Platter',         'Gulab Jamun 4pcs + Gajar Halwa Small + Masala Chai — dessert lovers delight',  199,  54, '2026-01-01', '2026-12-31', TRUE),
+('Palak Paneer Thali',    'Palak Paneer Full + Jeera Rice + 2 Tandoori Roti + Raita — healthy thali',     499, 135, '2026-01-01', '2026-12-31', TRUE),
+('Chicken 65 Snack Pack', 'Chicken 65 Half + 2 Garlic Naan + Fresh Lime Soda — spicy starter pack',       379, 104, '2026-01-01', '2026-12-31', TRUE);
 
 
 
@@ -262,6 +273,165 @@ SELECT 8, v.item_id, v.variant_id, 1
 FROM menu_variants v JOIN menu_items i USING(item_id)
 WHERE i.name = 'Masala Chai' AND v.variant_name = 'Single';
 
+-- ── Combo 9: Veg Biryani Combo ────────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 9, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Veg Biryani' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 9, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Raita' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 9, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Mango Lassi' AND v.variant_name = 'Small';
+
+-- ── Combo 10: Mutton Biryani Combo ───────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 10, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Mutton Biryani' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 10, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Raita' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 10, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Sweet Lassi' AND v.variant_name = 'Small';
+
+-- ── Combo 11: Royal Veg Dinner ───────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 11, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Shahi Paneer' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 11, v.item_id, v.variant_id, 2
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Garlic Naan' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 11, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Mango Lassi' AND v.variant_name = 'Small';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 11, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Gulab Jamun' AND v.variant_name = '2 Pieces';
+
+-- ── Combo 12: Chicken Kadai Combo ────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 12, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Chicken Kadai' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 12, v.item_id, v.variant_id, 2
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Paratha' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 12, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Fresh Lime Soda' AND v.variant_name = 'Single';
+
+-- ── Combo 13: Tandoori Night ─────────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 13, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Seekh Kebab' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 13, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Paneer Tikka' AND v.variant_name = 'Half';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 13, v.item_id, v.variant_id, 2
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Garlic Naan' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 13, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Mango Lassi' AND v.variant_name = 'Small';
+
+-- ── Combo 14: Rajma Chawal ───────────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 14, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Rajma Masala' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 14, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Jeera Rice' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 14, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Raita' AND v.variant_name = 'Single';
+
+-- ── Combo 15: Sweet Platter ──────────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 15, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Gulab Jamun' AND v.variant_name = '4 Pieces';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 15, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Gajar Halwa' AND v.variant_name = 'Small';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 15, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Masala Chai' AND v.variant_name = 'Single';
+
+-- ── Combo 16: Palak Paneer Thali ─────────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 16, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Palak Paneer' AND v.variant_name = 'Full';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 16, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Jeera Rice' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 16, v.item_id, v.variant_id, 2
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Tandoori Roti' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 16, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Raita' AND v.variant_name = 'Single';
+
+-- ── Combo 17: Chicken 65 Snack Pack ─────────────────────────────────────────
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 17, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Chicken 65' AND v.variant_name = 'Half';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 17, v.item_id, v.variant_id, 2
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Garlic Naan' AND v.variant_name = 'Single';
+
+INSERT INTO combo_items (combo_id, item_id, variant_id, qty)
+SELECT 17, v.item_id, v.variant_id, 1
+FROM menu_variants v JOIN menu_items i USING(item_id)
+WHERE i.name = 'Fresh Lime Soda' AND v.variant_name = 'Single';
+
 SELECT 'combo_items done', COUNT(*) FROM combo_items;
 
 
@@ -374,22 +544,24 @@ INSERT INTO recipes (item_id, variant_id, ing_id, qty_required) VALUES
 (8,  16, 25, 0.038), -- 38g cashews
 (8,  16, 8,  0.065); -- 65ml cream
 
--- -- ============================================================
--- -- OFFERS
--- -- ============================================================
--- INSERT INTO offers (name, type, discount_value, min_order_val, applicable_channels, valid_from, valid_to, usage_limit, is_active) VALUES
--- ('Happy Hour 20% Off',     'pct',        20, 150,  '{dine_in,phone}',               '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Weekend Special 15%',    'pct',        15, 300,  '{dine_in,takeaway}',            '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Flat 50 Off',            'flat',       50, 400,  '{dine_in,takeaway,phone}',      '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('New Customer 10%',       'pct',        10, 0,    '{dine_in,takeaway,phone}',      '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Diwali Special 25%',     'pct',        25, 500,  '{dine_in,takeaway,phone}',      '2024-10-28', '2024-11-05', 999999, TRUE),
--- ('Holi Offer Flat 100',    'flat',       100,600,  '{dine_in,phone}',               '2024-03-24', '2024-03-26', 999999, TRUE),
--- ('Zomato 30% Off',         'pct',        30, 200,  '{zomato}',                      '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Swiggy One 20%',         'pct',        20, 250,  '{swiggy}',                      '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Lunch Special Flat 30',  'flat',       30, 200,  '{dine_in}',                     '2024-01-01', '2024-12-31', 999999, TRUE),
--- ('Birthday Treat 15%',     'pct',        15, 0,    '{dine_in,takeaway,phone}',      '2024-01-01', '2024-12-31', 999999, TRUE);
+-- ============================================================
+-- OFFERS
+-- ============================================================
+INSERT INTO offers (name, type, discount_value, min_order_val, applicable_channels, valid_from, valid_to, usage_limit, is_active) VALUES
+('Happy Hour 20% Off',      'pct',   20, 150,  '{dine_in,phone}',               '2026-01-01', '2026-12-31', 999999, TRUE),
+('Weekend Special 15%',     'pct',   15, 300,  '{dine_in,takeaway}',            '2026-01-01', '2026-12-31', 999999, TRUE),
+('Flat 50 Off',             'flat',  50, 400,  '{dine_in,takeaway,phone}',      '2026-01-01', '2026-12-31', 999999, TRUE),
+('New Customer 10%',        'pct',   10,   0,  '{dine_in,takeaway,phone}',      '2026-01-01', '2026-12-31', 999999, TRUE),
+('Lunch Special Flat 30',   'flat',  30, 200,  '{dine_in}',                     '2026-01-01', '2026-12-31', 999999, TRUE),
+('Birthday Treat 15%',      'pct',   15,   0,  '{dine_in,takeaway,phone}',      '2026-01-01', '2026-12-31', 999999, TRUE),
+('Holi Special 25%',        'pct',   25, 500,  '{dine_in,takeaway,phone}',      '2026-03-13', '2026-03-16', 999999, TRUE),
+('Loyalty Flat 100 Off',    'flat', 100, 600,  '{dine_in,phone}',               '2026-01-01', '2026-12-31', 999999, TRUE),
+('Zomato 30% Off',          'pct',   30, 200,  '{zomato}',                      '2026-01-01', '2026-12-31', 999999, TRUE),
+('Swiggy One 20%',          'pct',   20, 250,  '{swiggy}',                      '2026-01-01', '2026-12-31', 999999, TRUE);
 
--- -- ============================================================
--- SELECT 'Static seed data inserted successfully' AS status;
--- SELECT 'Tables populated: restaurants, menu_categories, menu_items, menu_variants,' AS tables_1;
--- SELECT 'menu_addons, menu_combos, combo_items, ingredients, recipes, offers' AS tables_2;
+SELECT 'offers done', COUNT(*) FROM offers;
+
+-- ============================================================
+SELECT 'Static seed data inserted successfully' AS status;
+SELECT 'Tables populated: restaurants, menu_categories, menu_items, menu_variants,' AS tables_1;
+SELECT 'menu_addons, menu_combos, combo_items, ingredients, recipes, offers' AS tables_2;

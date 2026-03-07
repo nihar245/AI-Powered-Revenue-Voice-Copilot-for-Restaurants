@@ -3,8 +3,13 @@ Upsell & Combo Recommendation Engine
 
 Rule-based engine — no ML required.
 
-Uses DB-driven combo deals (from fetch_active_combos) passed at call time.
-Falls back gracefully to an empty list if no combos are available.
+Priority order for suggestions:
+  1. Combo completion  — customer is 1 item away from completing a combo (highest value)
+  2. DB upsell rules   — weight-sorted pairings from the upsell_rules table
+  3. Combo-derived     — any two items that share a combo (generic fallback)
+
+Uses DB-driven data (from fetch_active_combos / fetch_upsell_rules) passed at
+call time. Falls back gracefully to an empty list if no data is available.
 """
 
 from __future__ import annotations
@@ -17,44 +22,60 @@ def get_upsell_suggestion(
     already_shown: list[str],
     menu_items: list[dict],
     combo_deals: list[dict] | None = None,
+    upsell_rules: list[dict] | None = None,
 ) -> str | None:
     """
     Return a upsell suggestion string, or None if nothing new to suggest.
 
-    Priority:
-    1. Combo deal that is partially satisfied and not yet suggested
-    2. Single-item pairing derived from combo membership
+    Priority
+    --------
+    1. Combo completion — 1 item missing from a combo the customer almost has
+    2. DB upsell rules  — weight-sorted pairs (trigger_item → suggest_item)
+    3. Combo-derived    — generic pairing from combo membership (fallback)
 
     Parameters
     ----------
-    cart          : current cart (list of cart item dicts)
-    already_shown : list of suggestion strings already shown this session
-    menu_items    : active menu (to confirm the upsell target exists)
-    combo_deals   : active combos from DB (fetch_active_combos output)
+    cart          : current cart items
+    already_shown : suggestion strings already shown this session
+    menu_items    : active menu (to confirm the target item exists + exact name)
+    combo_deals   : active combos from fetch_active_combos()
+    upsell_rules  : active rules from fetch_upsell_rules()
     """
-    cart_names = {c["name"].lower() for c in cart}
-    menu_names = {m["name"].lower(): m["name"] for m in menu_items}
-    deals = combo_deals or []
+    cart_names  = {c["name"].lower() for c in cart}
+    menu_names  = {m["name"].lower(): m["name"] for m in menu_items}
+    deals       = combo_deals or []
+    rules       = sorted(upsell_rules or [], key=lambda r: -r.get("weight", 5))
 
-    # 1. Check combos first (higher value) — DB-driven
+    # ── 1. Combo completion (highest value) ───────────────────────────────────
     for combo in deals:
         items_lower = [it["item_name"].lower() for it in combo.get("items", [])]
-        present   = [i for i in items_lower if i in cart_names]
-        missing   = [i for i in items_lower if i not in cart_names]
+        present     = [i for i in items_lower if i in cart_names]
+        missing     = [i for i in items_lower if i not in cart_names]
         if present and missing:
-            # Suggest the first missing item that is on the menu
             for m in missing:
                 canonical = menu_names.get(m)
                 if canonical:
-                    price_hint = f" (combo price: ₹{combo['selling_price']:.0f})" if combo.get("selling_price") else ""
-                    suggestion = (
-                        f"Add {canonical} to complete the '{combo['name']}'"
-                        f"{price_hint}!"
+                    price_hint = (
+                        f" (complete the '{combo['name']}' combo at ₹{combo['selling_price']:.0f})"
+                        if combo.get("selling_price") else f" (part of the '{combo['name']}' combo)"
                     )
+                    suggestion = f"Add {canonical}{price_hint}!"
                     if suggestion not in already_shown:
                         return suggestion
 
-    # 2. Single-item pairings derived from combo membership
+    # ── 2. DB upsell rules (weight-sorted, highest first) ────────────────────
+    for rule in rules:
+        trigger   = rule["trigger_item"].lower()
+        suggest   = rule["suggest_item"].lower()
+        if trigger in cart_names and suggest not in cart_names:
+            canonical = menu_names.get(suggest)
+            if canonical:
+                reason     = rule.get("reason") or f"It pairs great with {rule['trigger_item']}"
+                suggestion = f"How about {canonical}? {reason}!"
+                if suggestion not in already_shown:
+                    return suggestion
+
+    # ── 3. Combo-derived pairings (generic fallback) ──────────────────────────
     for combo in deals:
         combo_items = [it["item_name"] for it in combo.get("items", [])]
         for trigger in combo_items:

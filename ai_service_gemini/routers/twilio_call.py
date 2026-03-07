@@ -59,6 +59,7 @@ from services.database.queries import (
     fetch_active_combos,
     fetch_active_menu,
     fetch_active_offers,
+    fetch_upsell_rules,
     generate_order_number,
     insert_order,
 )
@@ -72,18 +73,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/twilio", tags=["twilio"])
 
 # ── Menu cache ────────────────────────────────────────────────────────────────
-_MENU_TTL   = 60.0
+MENU_TTL   = 60.0
 _COMBO_TTL  = 120.0
 _menu_cache:    list[dict] = []
 _menu_cache_ts: float      = 0.0
 _combo_cache:   list[dict] = []
 _offer_cache:   list[dict] = []
 _combo_cache_ts: float     = 0.0
+_upsell_rules_cache:    list[dict] = []
+_upsell_rules_cache_ts: float      = 0.0
 
 
 async def _get_menu() -> list[dict]:
     global _menu_cache, _menu_cache_ts
-    if _menu_cache and (time.monotonic() - _menu_cache_ts) < _MENU_TTL:
+    if _menu_cache and (time.monotonic() - _menu_cache_ts) < MENU_TTL:
         return _menu_cache
     _menu_cache    = await fetch_active_menu()
     _menu_cache_ts = time.monotonic()
@@ -98,6 +101,15 @@ async def _get_combos_and_offers() -> tuple[list[dict], list[dict]]:
     _offer_cache    = await fetch_active_offers()
     _combo_cache_ts = time.monotonic()
     return _combo_cache, _offer_cache
+
+
+async def _get_upsell_rules() -> list[dict]:
+    global _upsell_rules_cache, _upsell_rules_cache_ts
+    if _upsell_rules_cache and (time.monotonic() - _upsell_rules_cache_ts) < _COMBO_TTL:
+        return _upsell_rules_cache
+    _upsell_rules_cache    = await fetch_upsell_rules()
+    _upsell_rules_cache_ts = time.monotonic()
+    return _upsell_rules_cache
 
 
 @router.get("/debug/db-status")
@@ -761,6 +773,7 @@ async def twilio_stream(websocket: WebSocket) -> None:
     menu_items:   list[dict] = []
     combo_deals:  list[dict] = []
     active_offers: list[dict] = []
+    upsell_rules: list[dict] = []
     turn_counter: int        = 0
 
     # Shared flag — safe because asyncio is single-threaded (no preemption between awaits)
@@ -798,6 +811,7 @@ async def twilio_stream(websocket: WebSocket) -> None:
                             menu_items, [],
                             combo_deals=combo_deals,
                             active_offers=active_offers,
+                            upsell_rules=upsell_rules,
                         )
                         await gemini_session.open(static_instr)
                     except Exception as exc:
@@ -907,6 +921,7 @@ async def twilio_stream(websocket: WebSocket) -> None:
                 session_id  = call_sid
                 menu_items  = await _get_menu()
                 combo_deals, active_offers = await _get_combos_and_offers()
+                upsell_rules = await _get_upsell_rules()
                 turn_counter = 0
 
                 call_log_entry.update({
