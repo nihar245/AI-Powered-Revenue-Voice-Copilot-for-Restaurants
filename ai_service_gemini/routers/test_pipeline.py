@@ -824,21 +824,31 @@ async def _write_order_to_db(
     Returns the order_number (always, even in demo/fallback mode).
     """
     pool = get_pool()
+    logger.info("[confirm] _write_order_to_db called  cart_items=%d  total=%.2f  pool_available=%s",
+                len(cart), grand_total, pool is not None)
     if pool is None:
         fallback_num = f"VO-{uuid.uuid4().hex[:6].upper()}"
+        logger.warning("[confirm] DB pool is None — using DEMO mode, order NOT saved to DB. order_number=%s",
+                       fallback_num)
         cart_events.append(f"✅ Order #{fallback_num} confirmed — ₹{grand_total:.0f} (demo mode)")
         return fallback_num
 
     order_num = await generate_order_number()
-    await insert_order(
-        order_number=order_num,
-        cart=cart,
-        subtotal=subtotal,
-        tax=tax_total,
-        total=grand_total,
-    )
-    cart_events.append(f"✅ Order #{order_num} placed — ₹{grand_total:.0f}")
-    logger.info("Order %s written to DB (total=%.0f)", order_num, grand_total)
+    logger.info("[confirm] generated order_number=%s, calling insert_order...", order_num)
+    try:
+        await insert_order(
+            order_number=order_num,
+            cart=cart,
+            subtotal=subtotal,
+            tax=tax_total,
+            total=grand_total,
+        )
+        cart_events.append(f"✅ Order #{order_num} placed — ₹{grand_total:.0f}")
+        logger.info("[confirm] insert_order SUCCESS  order_number=%s  total=%.0f", order_num, grand_total)
+    except Exception as exc:
+        logger.error("[confirm] insert_order FAILED  order_number=%s  error=%s", order_num, exc, exc_info=True)
+        cart_events.append(f"❌ Order insert failed: {exc}")
+        raise
     return order_num
 
 
@@ -850,16 +860,23 @@ async def confirm_order_button(session_id: str = Form(...)):
     Button-triggered order confirmation. Writes the cart to DB and clears the session.
     Called by Node.js backend when the user presses the Confirm button in the UI.
     """
+    logger.info("[confirm] confirm_order_button called  session_id=%s", session_id)
     session = get_session(session_id)
     if not session:
+        logger.error("[confirm] session NOT FOUND  session_id=%s", session_id)
         raise HTTPException(status_code=404, detail="Session not found")
 
     cart = session.get("cart", [])
+    logger.info("[confirm] session found  cart_items=%d  cart=%s",
+                len(cart), str(cart)[:300])
     if not cart:
+        logger.warning("[confirm] cart is EMPTY for session_id=%s — nothing to confirm", session_id)
         return {"order_number": None, "cart_events": ["Cart is empty"], "message": "Cart is empty"}
 
     cart_events: list[str] = []
     subtotal, tax_total, grand_total = get_cart_total(cart)
+    logger.info("[confirm] totals  subtotal=%.2f  tax=%.2f  grand_total=%.2f",
+                subtotal, tax_total, grand_total)
 
     order_number = await _write_order_to_db(
         session_data=session,
@@ -872,6 +889,8 @@ async def confirm_order_button(session_id: str = Form(...)):
     )
 
     update_session(session_id, {"cart": [], "last_intent": "confirm_order"})
+    logger.info("[confirm] confirm_order_button DONE  session_id=%s  order_number=%s",
+                session_id, order_number)
 
     return {
         "order_number": order_number,

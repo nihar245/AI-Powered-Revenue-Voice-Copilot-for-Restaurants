@@ -12,11 +12,17 @@ menu_categories — NOT the old cafe-odoo products/categories schema).
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import HTTPException
 
 from services.database.connection import get_pool
+
+logger = logging.getLogger(__name__)
+
+_LOG  = lambda *a: logger.info("[DB/queries] " + a[0], *a[1:])
+_ERR  = lambda *a: logger.error("[DB/queries][ERROR] " + a[0], *a[1:])
 
 
 # ─── READ — Menu ─────────────────────────────────────────────────────────────
@@ -146,23 +152,17 @@ async def insert_order(
 ) -> int:
     """
     Write a confirmed voice order to orders + order_items + kot + kot_items.
-
-    cart items are expected to have:
-      product_id  : str(item_id)
-      name        : str
-      quantity    : int
-      unit_price  : float
-      tax_rate    : float  (gst %)
-      variant_id  : int | None
-      notes       : str | None
-      modifiers   : dict | None
     """
+    _LOG("insert_order START  order_number=%s  items=%d  total=%.2f",
+         order_number, len(cart), total)
     pool = get_pool()
     if pool is None:
+        _ERR("insert_order FAILED — database pool is None (not connected)")
         raise HTTPException(status_code=503, detail="Database unavailable")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
+            _LOG("insert_order: BEGIN transaction")  
 
             order_id: int = await conn.fetchval("""
                 INSERT INTO orders (
@@ -174,6 +174,7 @@ async def insert_order(
                 )
                 RETURNING order_id
             """, restaurant_id, placed_by, subtotal, tax, total)
+            _LOG("insert_order: orders row inserted  order_id=%d", order_id)
 
             for item in cart:
                 item_id    = int(item["product_id"])
@@ -193,6 +194,8 @@ async def insert_order(
                     )
                     if fc_row:
                         food_cost = float(fc_row["food_cost"])
+                    else:
+                        _ERR("insert_order: variant_id=%s not found in menu_variants", variant_id)
 
                 # Merge notes + modifiers into special_instructions
                 notes = item.get("notes") or ""
@@ -216,13 +219,17 @@ async def insert_order(
                     int(variant_id) if variant_id else None,
                     qty, unit_price, revenue, food_cost,
                     gst_amt, notes or None)
+                _LOG("insert_order: order_item inserted  order_id=%d  item_id=%d  variant_id=%s  qty=%d",
+                     order_id, item_id, variant_id, qty)
 
             # Create KOT
+            _LOG("insert_order: inserting KOT for order_id=%d", order_id)
             kot_id: int = await conn.fetchval("""
                 INSERT INTO kot (order_id, status, priority, created_at)
                 VALUES ($1, 'pending', 'normal', NOW())
                 RETURNING kot_id
             """, order_id)
+            _LOG("insert_order: KOT inserted  kot_id=%d  order_id=%d  status=pending", kot_id, order_id)
 
             for item in cart:
                 item_id    = int(item["product_id"])
@@ -242,5 +249,9 @@ async def insert_order(
                 """, kot_id, item_id,
                     int(variant_id) if variant_id else None,
                     qty, addons_str or None, notes or None)
+                _LOG("insert_order: kot_item inserted  kot_id=%d  item_id=%d  qty=%d",
+                     kot_id, item_id, qty)
 
+    _LOG("insert_order COMPLETE  order_number=%s  order_id=%d  kot_id=%d",
+         order_number, order_id, kot_id)
     return order_id

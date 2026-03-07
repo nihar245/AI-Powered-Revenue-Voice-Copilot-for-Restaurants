@@ -37,6 +37,17 @@ exports.updateKotStatus = async (req, res, next) => {
 exports.pending = async (_req, res, next) => {
   try {
     LOG('pending() called — fetching pending/preparing KOTs');
+
+    // Raw diagnostic: count ALL kots by status to spot status-mismatch bugs
+    const { rows: statusCounts } = await db.query(
+      `SELECT status, COUNT(*) AS n FROM kot GROUP BY status ORDER BY status`
+    );
+    LOG('pending() DB kot table status breakdown: %s',
+      statusCounts.length
+        ? statusCounts.map(r => `${r.status}=${r.n}`).join('  ')
+        : '(table is empty)'
+    );
+
     const { rows } = await db.query(`
       SELECT
         k.kot_id,
